@@ -73,6 +73,13 @@ export function loadScoreboard(win: BrowserWindow, matchId: string): void {
   loadRoute(win, `/scoreboard/${matchId}`)
 }
 
+/** Never shown: a match report rendered at A4 width for PDF export and printing. */
+export function createReportWindow(matchId: string): BrowserWindow {
+  const win = new BrowserWindow({ width: 794, height: 1123, show: false, title: 'HMMS report', webPreferences: secureWebPreferences() })
+  loadRoute(win, `/print/report/${matchId}`)
+  return win
+}
+
 /** Harden every web contents: no navigation away, no new windows, no permission prompts. */
 export function hardenContents(contents: Electron.WebContents): void {
   contents.setWindowOpenHandler(({ url }) => {

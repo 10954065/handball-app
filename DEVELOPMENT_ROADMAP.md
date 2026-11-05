@@ -10,7 +10,7 @@ acceptance criteria pass (see TESTING_STRATEGY.md).
 | 3 Starting lineups | Match roster selection, starting seven, goalkeeper, captain, substitutes, team officials A-D, validation, snapshot, confirmation screen | Both teams can be configured correctly before a match begins | **Complete** |
 | 4 Live match engine | Scoreboard, monotonic clock, periods, goals and shots, timeline, player selection, substitutions, persistence, crash recovery, undo/corrections, second screen | A complete match can be recorded with accurate scoring and recoverable data | **Complete** |
 | 5 Rules and discipline | Warnings, suspensions with simultaneous timers and expiry sound, third-suspension disqualification, red and blue cards, officials, time-outs | Engine passes automated tests against documented rules | **Complete** |
-| 6 Statistics and reports | Player, goalkeeper, team statistics, match sheet, PDF, Excel, printing, archive, history | Statistics and reports agree with the event ledger | Planned |
+| 6 Statistics and reports | Player, goalkeeper, team statistics, match sheet, PDF, Excel, printing, archive, history | Statistics and reports agree with the event ledger | **Complete** |
 | 7 Competition management | Fixtures, standings, results, groups, knockout rounds, competition reports | Competition records calculated correctly from finalized matches | Planned |
 | 8 Deployment | Windows installer, icon, versioning, data directory, crash recovery, error logging, production build, user/admin/operator guides | Installs and runs on a clean Windows PC without Node.js, terminal or internet | Planned |
 

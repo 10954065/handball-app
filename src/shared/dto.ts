@@ -15,11 +15,12 @@ import type {
   ShotZone,
   Side
 } from './domain/constants'
-import type { ShootoutStatus } from './domain/flow'
+import type { DecidedBy, ShootoutSide, ShootoutStatus } from './domain/flow'
 import type { ClockPhase } from './domain/live'
 import type { PeriodDef } from './domain/periods'
 import type { RulesConfig } from './domain/rules'
-import type { TeamTally } from './domain/tally'
+import type { PeriodScore, ScoreFlowPoint, ShootingBreakdown } from './domain/statistics'
+import type { PlayerTally, TeamTally } from './domain/tally'
 import type { CourtStatus } from './domain/types'
 import type { AppSettings } from './schemas/settings'
 
@@ -289,6 +290,8 @@ export interface MatchSummaryDTO {
   homeShootout: number | null
   awayShootout: number | null
   winnerSide: 'home' | 'away' | 'draw' | null
+  /** The finalized result was corrected afterwards. */
+  amended: boolean
   lineupsConfirmed: { home: boolean; away: boolean }
 }
 
@@ -296,7 +299,6 @@ export interface MatchDetailDTO extends MatchSummaryDTO {
   rules: RulesConfig
   notes: string | null
   officials: { officialId: string; name: string; role: string }[]
-  amended: boolean
 }
 
 export interface DashboardDTO {
@@ -527,4 +529,172 @@ export interface LiveSanctionResultDTO {
   live: LiveMatchDTO
   /** Consequences to show the operator, e.g. an automatic disqualification. */
   notes: string[]
+}
+
+/* Statistics and reports */
+
+export interface StatPlayerDTO {
+  playerId: string
+  name: string
+  photoMediaId: string | null
+  teamName: string
+  teamColor: string
+  matches: number
+  goals: number
+  shots: number
+  sevenMetreGoals: number
+  sevenMetreShots: number
+  assists: number
+  steals: number
+  blocks: number
+  turnovers: number
+  technicalFaults: number
+  warnings: number
+  suspensions: number
+  disqualifications: number
+}
+
+export interface StatGoalkeeperDTO {
+  playerId: string
+  name: string
+  photoMediaId: string | null
+  teamName: string
+  teamColor: string
+  matches: number
+  saves: number
+  shotsFaced: number
+  goalsConceded: number
+  sevenMetreSaves: number
+  sevenMetreFaced: number
+}
+
+export interface StatTeamDTO extends Omit<TeamTally, 'goals'> {
+  teamId: string
+  name: string
+  code: string
+  color: string
+  played: number
+  won: number
+  drawn: number
+  lost: number
+  goalsFor: number
+}
+
+/** Totals of finalized matches only. */
+export interface StatisticsOverviewDTO {
+  matches: number
+  players: StatPlayerDTO[]
+  goalkeepers: StatGoalkeeperDTO[]
+  teams: StatTeamDTO[]
+}
+
+export interface ReportPlayerDTO {
+  rosterId: string
+  playerId: string
+  jerseyNumber: number
+  name: string
+  isGoalkeeper: boolean
+  isCaptain: boolean
+  isStarting: boolean
+  played: boolean
+  stats: PlayerTally
+  /** Match times of each sanction, as they are written on a match report. */
+  warningsAt: string[]
+  suspensionsAt: string[]
+  disqualifiedAt: string | null
+  blueCard: boolean
+}
+
+export interface ReportOfficialDTO {
+  slot: string
+  name: string
+  role: string
+  warningsAt: string[]
+  suspensionsAt: string[]
+  disqualifiedAt: string | null
+  blueCard: boolean
+}
+
+export interface ReportSideDTO {
+  side: Side
+  teamId: string
+  name: string
+  code: string
+  color: string
+  logoMediaId: string | null
+  score: number
+  halfTime: number | null
+  shootout: ShootoutSide | null
+  stats: TeamTally
+  shooting: ShootingBreakdown
+  timeoutsAt: string[]
+  players: ReportPlayerDTO[]
+  officials: ReportOfficialDTO[]
+}
+
+export interface ReportEventDTO {
+  id: string
+  time: string
+  periodLabel: string
+  side: Side | null
+  title: string
+  who: string
+  detail: string
+  score: string | null
+  /** Goals, sanctions, time-outs, period changes and shoot-out throws: the printed timeline. */
+  key: boolean
+}
+
+export interface ReportCorrectionDTO {
+  id: string
+  time: string
+  title: string
+  who: string
+  kind: 'voided' | 'clock'
+  reason: string
+  /** Who voided the event or corrected the clock. */
+  by: string | null
+}
+
+/** Everything a match report shows, built from the event ledger in one place. */
+export interface MatchReportDTO {
+  match: MatchDetailDTO
+  state: 'final' | 'provisional'
+  demo: boolean
+  organisationName: string
+  headerTitle: string
+  footerNote: string
+  showLogos: boolean
+  includeStatistics: boolean
+  includeTimeline: boolean
+  decidedBy: DecidedBy | null
+  spectators: number | null
+  finalizedAt: number | null
+  finalizedBy: string | null
+  home: ReportSideDTO
+  away: ReportSideDTO
+  periods: PeriodScore[]
+  flow: ScoreFlowPoint[]
+  biggestLead: { side: Side; goals: number } | null
+  timeline: ReportEventDTO[]
+  corrections: ReportCorrectionDTO[]
+  ledger: { digest: string; events: number; voided: number }
+}
+
+export type ReportFormat = 'pdf' | 'xlsx'
+
+/** An archived report file. The bytes stay in the main process. */
+export interface ReportFileDTO {
+  id: string
+  matchId: string
+  matchNumber: string
+  title: string
+  format: ReportFormat
+  fileName: string
+  sizeBytes: number
+  matchState: 'final' | 'provisional'
+  /** The match has been corrected since this file was made. */
+  outdated: boolean
+  generatedBy: string | null
+  createdAt: number
 }

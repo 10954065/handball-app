@@ -36,4 +36,4 @@ export const NAV: NavItem[] = [
 ]
 
 /** The highest development phase included in this build. */
-export const BUILD_PHASE = 5
+export const BUILD_PHASE = 6

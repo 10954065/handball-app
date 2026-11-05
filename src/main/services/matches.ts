@@ -1,4 +1,4 @@
-import { aliasedTable, and, asc, desc, eq, inArray, like, or } from 'drizzle-orm'
+import { aliasedTable, and, asc, desc, eq, gte, inArray, like, lte, or } from 'drizzle-orm'
 import type { z } from 'zod'
 import { DEFAULT_RULES, findPreset } from '@shared/domain/rules'
 import type { MatchDetailDTO, MatchSummaryDTO } from '@shared/dto'
@@ -48,6 +48,7 @@ function toSummary(r: SummaryRow, confirmed: Set<string>): MatchSummaryDTO {
     homeShootout: m.homeShootout,
     awayShootout: m.awayShootout,
     winnerSide: m.winnerSide,
+    amended: m.amended,
     lineupsConfirmed: { home: confirmed.has(`${m.id}:home`), away: confirmed.has(`${m.id}:away`) }
   }
 }
@@ -70,6 +71,9 @@ export function listMatches(ctx: Ctx, q: z.output<typeof matchListQuery>): Match
       and(
         q?.status?.length ? inArray(matches.status, q.status) : undefined,
         q?.seasonId ? eq(matches.seasonId, q.seasonId) : undefined,
+        q?.competitionId ? eq(matches.competitionId, q.competitionId) : undefined,
+        q?.from ? gte(matches.scheduledAt, q.from) : undefined,
+        q?.to ? lte(matches.scheduledAt, q.to) : undefined,
         q?.teamId ? or(eq(matches.homeTeamId, q.teamId), eq(matches.awayTeamId, q.teamId)) : undefined,
         s ? or(like(matches.homeTeamName, `%${s}%`), like(matches.awayTeamName, `%${s}%`), like(matches.matchNumber, `%${s}%`)) : undefined
       )
@@ -88,7 +92,7 @@ export function getMatch(ctx: Ctx, id: string): MatchDetailDTO {
     .from(matchOfficials)
     .where(eq(matchOfficials.matchId, id))
     .all()
-  return { ...toSummary(r, confirmedLineups(ctx, [id])), rules: r.m.rules, notes: r.m.notes, officials: offs, amended: r.m.amended }
+  return { ...toSummary(r, confirmedLineups(ctx, [id])), rules: r.m.rules, notes: r.m.notes, officials: offs }
 }
 
 function nextMatchNumber(ctx: Ctx, at: number): string {

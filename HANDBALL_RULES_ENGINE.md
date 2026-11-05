@@ -129,6 +129,26 @@ Voiding a time-out gives it back to the team.
 - Jersey numbers 1-99, unique within the team; at most one captain.
 - Substitutions are unlimited (rolling); HMMS never counts them against a limit.
 
+## Statistics (`tally.ts`, `statistics.ts`)
+
+Every number comes from active ledger events. Voided events never count. The definitions are:
+
+| Statistic | Definition |
+| --- | --- |
+| Shots | Every recorded shot: goal, saved, missed, blocked, post or crossbar. |
+| Shooting % | Goals divided by shots. |
+| Shots faced | Shots on target against a goalkeeper: saves plus goals conceded. Missed, blocked and post shots do not count. |
+| Save % | Saves divided by shots faced. A team's rate uses all goals conceded, including those with no goalkeeper on record. |
+| 7 m | 7-metre throws are also included in the shot, goal and save totals, and are listed separately. |
+| Team sanctions | Include those of team officials. Player totals do not. |
+| Matches | Finalized matches the player took part in: started, was brought on, or is named in an active event. A player on the match sheet with none of these is not counted. |
+
+Shoot-out throws decide the winner and appear in the report, but are not match statistics. A
+rate with nothing to measure is shown as a dash, not as 0%.
+
+Playing time is not calculated. It would be wrong whenever substitutions are not being recorded,
+so `player_statistics.playing_time_ms` stays empty.
+
 ## Module map
 
 | File | Responsibility |
@@ -137,6 +157,8 @@ Voiding a time-out gives it back to the team.
 | `periods.ts` | Period plan, cumulative time, formatting |
 | `clock.ts` | Monotonic clock arithmetic |
 | `ledger.ts` | Derive score, court status, sanctions and running reductions from events |
+| `tally.ts` | Every player and team count of a match, shared by all screens and reports |
+| `statistics.ts` | Score flow, goals by period, shooting breakdown, appearances, percentages |
 | `discipline.ts` | Plan the ledger events for a disciplinary decision |
 | `timeouts.ts` | Validate team time-out requests |
 | `lineup.ts` | Validate match roster and starting lineup |

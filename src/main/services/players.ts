@@ -1,11 +1,14 @@
 import { and, asc, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm'
 import type { z } from 'zod'
+import { appearances } from '@shared/domain/statistics'
+import { liveTallies, type PlayerTally } from '@shared/domain/tally'
 import type { PlayerDetailDTO, PlayerDTO, PlayerMatchDTO, PlayerTotalsDTO } from '@shared/dto'
 import { AppError } from '@shared/errors'
 import type { changeJerseySchema, playerInputSchema, playerListQuery, playerUpdateSchema, transferSchema } from '@shared/schemas/entities'
 import { competitions, matchEvents, matchRosters, matches, players, teamPlayers, teams } from '../db/schema'
 import { audit } from './audit'
 import { type Ctx, notFound, nowOf, tx, uuid } from './ctx'
+import { toLedger } from './live/state'
 
 type Row = { p: typeof players.$inferSelect; teamId: string | null; teamName: string | null; teamColor: string | null; jersey: number | null; captainId: string | null }
 
@@ -189,6 +192,22 @@ const emptyTotals = (): PlayerTotalsDTO => ({
   shotsFaced: 0
 })
 
+function addToTotals(totals: PlayerTotalsDTO, t: PlayerTally): void {
+  totals.goals += t.goals
+  totals.shots += t.shots
+  totals.sevenMetreGoals += t.sevenMetreGoals
+  totals.assists += t.assists
+  totals.steals += t.steals
+  totals.blocks += t.blocks
+  totals.turnovers += t.turnovers
+  totals.technicalFaults += t.technicalFaults
+  totals.warnings += t.warnings
+  totals.suspensions += t.suspensions
+  totals.disqualifications += t.disqualifications
+  totals.saves += t.saves
+  totals.shotsFaced += t.shotsFaced
+}
+
 /** Player profile. Statistics are derived directly from the active event ledger. */
 export function getPlayer(ctx: Ctx, id: string): PlayerDetailDTO {
   const base = getPlayerDTO(ctx, id)
@@ -216,7 +235,7 @@ export function getPlayer(ctx: Ctx, id: string): PlayerDetailDTO {
         .where(
           and(
             eq(matchEvents.status, 'active'),
-            or(inArray(matchEvents.rosterId, rosterIds), inArray(matchEvents.assistRosterId, rosterIds), inArray(matchEvents.goalkeeperRosterId, rosterIds))
+            or(inArray(matchEvents.rosterId, rosterIds), inArray(matchEvents.inRosterId, rosterIds), inArray(matchEvents.assistRosterId, rosterIds), inArray(matchEvents.goalkeeperRosterId, rosterIds))
           )
         )
         .all()
@@ -240,31 +259,22 @@ export function getPlayer(ctx: Ctx, id: string): PlayerDetailDTO {
       suspensions: 0,
       disqualifications: 0
     })
-    if (m.status === 'live' || m.status === 'finished') totals.matches++
   }
-  for (const e of events) {
-    const own = e.rosterId ? perMatch.get(e.rosterId) : undefined
-    if (own && e.type === 'shot' && e.situation !== 'shootout') {
-      own.shots++
-      totals.shots++
-      if (e.outcome === 'goal') {
-        own.goals++
-        totals.goals++
-        if (e.situation === 'seven_metre') totals.sevenMetreGoals++
-      }
-    }
-    if (own && e.type === 'warning') (own.warnings++, totals.warnings++)
-    if (own && e.type === 'suspension') (own.suspensions++, totals.suspensions++)
-    if (own && e.type === 'disqualification') (own.disqualifications++, totals.disqualifications++)
-    if (own && e.type === 'steal') totals.steals++
-    if (own && e.type === 'turnover') totals.turnovers++
-    if (own && e.type === 'technical_fault') totals.technicalFaults++
-    if (own && e.type === 'block') totals.blocks++
-    if (e.assistRosterId && perMatch.has(e.assistRosterId) && e.outcome === 'goal') totals.assists++
-    if (e.goalkeeperRosterId && perMatch.has(e.goalkeeperRosterId) && e.type === 'shot' && (e.outcome === 'goal' || e.outcome === 'saved')) {
-      totals.shotsFaced++
-      if (e.outcome === 'saved') totals.saves++
-    }
+  const ledger = events.map(toLedger)
+  const { players: tallies } = liveTallies(ledger)
+  const played = appearances(ledger, rosters.map((x) => ({ id: x.r.id, isStarting: x.r.isStarting })))
+  const finished = new Set(rosters.filter((x) => x.m.status === 'finished').map((x) => x.r.id))
+  totals.matches = [...finished].filter((id) => played.has(id)).length
+  for (const [rosterId, t] of tallies) {
+    const own = perMatch.get(rosterId)
+    if (!own) continue
+    own.goals = t.goals
+    own.shots = t.shots
+    own.warnings = t.warnings
+    own.suspensions = t.suspensions
+    own.disqualifications = t.disqualifications
+    // Career totals cover finalized matches, like the statistics page; a live match shows in its own row.
+    if (finished.has(rosterId)) addToTotals(totals, t)
   }
   const competitionsPlayed = [...new Set(rosters.map((x) => x.competitionName).filter((n): n is string => !!n))]
   return { ...base, history, matches: [...perMatch.values()], totals, competitions: competitionsPlayed }

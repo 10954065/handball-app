@@ -2,6 +2,37 @@
 
 All notable changes to HMMS are recorded here.
 
+## [0.6.0] - Phase 6: Statistics and reports - 2026-11-05
+
+### Added
+- Statistics page: player, goalkeeper and team totals over finalized matches, filtered by
+  competition, season and team, with sortable tables, top scorers and Excel export.
+- Match statistics on the match page: score flow, goals by period and team comparison.
+- A4 match report: result, half-time, both match sheets with sanction times, team officials,
+  goalkeepers, time-outs, team statistics, timeline, corrections and signature lines. The
+  header, footer and optional sections follow the report settings.
+- PDF, Excel and printing from one report. The preview, the PDF and the printout are the same
+  page. Reports made before a match is finalized are marked provisional and demonstration data
+  is marked, at the top of the report and in the footer of every PDF page.
+- Report archive: every saved file is kept in the database. Saving an identical report reuses
+  the archived file. A later correction marks older files as outdated, as does finalizing a
+  match that a provisional file was made for.
+- Every report prints a fingerprint of the event ledger it was made from.
+- Match History page with search and filters by competition, team and date.
+- Migration `0003_statistics_reports` adds the statistics and archive columns.
+
+### Fixed
+- The live screen counted missed shots as shots faced by the goalkeeper, while the player
+  profile did not. Both now count saves plus goals conceded.
+- The red dot beside Live Match Centre was always on. It now shows only while a match is live.
+- The player profile counted matches in progress and matches sat out on the bench. Its totals
+  now cover finalized matches the player took part in, the same as the Statistics page.
+
+### Changed
+- The live screen, reports, statistics and player profile share one tally of the ledger.
+- A finalized match that is corrected now shows as "Final (amended)" in match lists.
+- Demonstration files are named `DEMO - ...`, and every Excel sheet carries the notice.
+
 ## [0.5.0] - Phase 5: Rules and discipline - 2026-11-05
 
 ### Added

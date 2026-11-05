@@ -50,8 +50,8 @@ export function MatchRow({ m, to }: { m: MatchSummaryDTO; to?: string }) {
         <TeamCrest logoMediaId={m.away.logoMediaId} code={m.away.code} color={m.away.color} size={30} />
         <span className={`line-clamp-2 font-medium leading-tight ${played && m.winnerSide !== 'away' ? 'text-muted' : ''}`}>{m.away.name}</span>
       </div>
-      <Badge tone={s.tone} className="justify-self-end">
-        {s.label}
+      <Badge tone={m.amended ? 'warning' : s.tone} className="justify-self-end">
+        {m.amended ? 'Final (amended)' : s.label}
       </Badge>
     </Link>
   )

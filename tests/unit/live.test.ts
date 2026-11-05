@@ -111,7 +111,7 @@ describe('live tallies', () => {
     const t = liveTallies(events)
     expect(t.players.get('home-9')).toMatchObject({ goals: 2, shots: 3, sevenMetreGoals: 1, sevenMetreShots: 2 })
     expect(t.players.get('home-3')?.assists).toBe(1)
-    expect(t.players.get('away-1')).toMatchObject({ saves: 1, shotsFaced: 3 })
+    expect(t.players.get('away-1')).toMatchObject({ saves: 1, shotsFaced: 3, goalsConceded: 2 })
     expect(t.teams.home).toMatchObject({ goals: 2, shots: 3 })
     expect(t.teams.away).toMatchObject({ saves: 1, shots: 1, turnovers: 1 })
   })

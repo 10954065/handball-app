@@ -4,6 +4,7 @@ import { ChevronsLeft, ChevronsRight, FlaskConical, LogOut } from 'lucide-react'
 import { call } from '@/lib/api'
 import { cn } from '@/lib/cn'
 import { BUILD_PHASE, NAV } from '@/lib/nav'
+import { useApi } from '@/lib/query'
 import { useSession } from '@/lib/session'
 import { initials } from '@/lib/format'
 import { BrandWordmark } from './brand'
@@ -16,6 +17,7 @@ export function Shell() {
   const [collapsed, setCollapsed] = useState(() => localStorage.getItem(COLLAPSE_KEY) === '1')
   useEffect(() => localStorage.setItem(COLLAPSE_KEY, collapsed ? '1' : '0'), [collapsed])
   const demo = status?.mode === 'demo'
+  const liveMatches = useApi('matches.list', { status: ['live'], limit: 1 })
 
   return (
     <div className="flex h-full flex-col">
@@ -61,8 +63,8 @@ export function Shell() {
                       {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-primary" />}
                       <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-primary')} />
                       {!collapsed && <span className="truncate">{item.label}</span>}
-                      {!collapsed && item.to === '/live' && available && (
-                        <span className="ml-auto size-2 rounded-full bg-red-card shadow-[0_0_8px] shadow-red-card" />
+                      {!collapsed && item.to === '/live' && !!liveMatches.data?.length && (
+                        <span data-testid="live-indicator" title="A match is live" className="ml-auto size-2 rounded-full bg-red-card shadow-[0_0_8px] shadow-red-card" />
                       )}
                     </>
                   )}

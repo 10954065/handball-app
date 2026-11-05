@@ -17,6 +17,11 @@ import { LineupsPage } from '@/pages/lineups'
 import { LiveIndexPage } from '@/pages/live'
 import { MatchCentrePage } from '@/pages/live/centre'
 import { ScoreboardPage } from '@/pages/scoreboard'
+import { HistoryPage } from '@/pages/history'
+import { ReportsPage } from '@/pages/reports'
+import { ReportDetailPage } from '@/pages/reports/detail'
+import { ReportPrintPage } from '@/pages/reports/print'
+import { StatisticsPage } from '@/pages/statistics'
 import { OfficialsPage } from '@/pages/officials'
 import { PlayersPage } from '@/pages/players'
 import { PlayerDetailPage } from '@/pages/players/detail'
@@ -43,6 +48,12 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
     { path: 'competitions', element: <CompetitionsPage /> },
     { path: 'competitions/:id', element: <CompetitionDetailPage /> }
   ],
+  '/statistics': [{ path: 'statistics', element: <StatisticsPage /> }],
+  '/reports': [
+    { path: 'reports', element: <ReportsPage /> },
+    { path: 'reports/:id', element: <ReportDetailPage /> }
+  ],
+  '/history': [{ path: 'history', element: <HistoryPage /> }],
   '/matches': [
     { path: 'matches', element: <MatchesPage /> },
     { path: 'matches/:id', element: <MatchDetailPage /> },
@@ -52,6 +63,7 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
 
 const router = createHashRouter([
   { path: '/scoreboard/:id', element: <ScoreboardPage /> },
+  { path: '/print/report/:id', element: <ReportPrintPage /> },
   {
     path: '/',
     element: <AuthGate />,

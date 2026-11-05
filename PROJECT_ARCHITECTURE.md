@@ -89,3 +89,21 @@ tables mirror the ledger for reporting and are never the source of truth.
 
 Live services are in `src/main/services/live` and stay Electron-free. Tests inject the monotonic
 source and process id through `Ctx`, so time and crashes can be simulated exactly.
+
+## Statistics and reports (phase 6)
+
+`liveTallies` is the only code that counts events. The live screen, the player profile, the
+report and the statistics cache all read it, so they cannot use different definitions.
+
+`player_statistics` and `team_statistics` are rebuilt from the ledger inside the transaction that
+finalizes or corrects a match. The Statistics page reads them, because totals cross many matches.
+Finalized matches with no cache are rebuilt on the next read, which covers older backups.
+
+`matchReport` builds one `MatchReportDTO` from the ledger, and everything else uses it: the match
+page, the preview, the PDF and the workbook. The React component `MatchReportDocument` is the
+preview, and it is also what is printed: a hidden `BrowserWindow` loads `#/print/report/:id` with
+the same secure preferences as any other window, and `reportWindow.ts` waits until the page sets
+`data-report-state` before calling `printToPDF` or `print`. Nothing leaves the machine.
+
+Generated files are stored in `match_reports`, so a backup includes them. A file is outdated when
+the current ledger's fingerprint differs from the one it was made from.

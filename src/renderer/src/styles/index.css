@@ -30,6 +30,8 @@
   --ring: #6aa1ff;
   --gold: #f5b301;
   --overlay: rgb(3 6 12 / 0.72);
+  --chart-home: #4c8dff;
+  --chart-away: #ea580c;
   color-scheme: dark;
 }
 
@@ -50,6 +52,8 @@
   --ring: #3b82f6;
   --gold: #c58d00;
   --overlay: rgb(15 22 38 / 0.45);
+  --chart-home: #2563eb;
+  --chart-away: #ea580c;
   color-scheme: light;
 }
 

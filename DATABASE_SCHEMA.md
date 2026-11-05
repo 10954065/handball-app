@@ -46,9 +46,9 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 | `substitutions` | Substitution history (mirrors the ledger). |
 | `timeouts` | Team time-outs: wall-clock start and end, monotonic start and owning process id. |
 | `standings` | Derived standings cache per season and group. |
-| `player_statistics` | Derived per-match player statistics cache. |
-| `team_statistics` | Derived per-match team statistics cache. |
-| `match_reports` | Archive of generated PDF/XLSX reports. |
+| `player_statistics` | Derived per-match player statistics cache. One row per match-sheet entry; `played` is true for starters, players brought on and anyone named in an active event. Rebuilt from the ledger in the transaction that finalizes or corrects a match. `playing_time_ms` is not filled yet. |
+| `team_statistics` | Derived per-match team statistics cache, rebuilt with `player_statistics`. A finalized match without a row, as in a backup from an older version, is rebuilt from its ledger when statistics are next read. |
+| `match_reports` | Archive of generated PDF/XLSX files, stored as blobs so backups include them. `ledger_digest` is the SHA-256 of the ledger the file was made from: when it differs from the current ledger the file is outdated. `content_key` is the SHA-256 of the whole report, so an identical report is not stored twice. `match_state` records whether the match was final. |
 | `app_settings` | JSON application settings. |
 | `audit_logs` | Append-only audit trail (who, what, before, after). |
 | `backup_history` | Every backup: path, size, SHA-256, integrity result. |

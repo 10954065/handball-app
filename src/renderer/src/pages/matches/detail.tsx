@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ClipboardList, Pencil, RadioTower, Trash2 } from 'lucide-react'
+import { ArrowLeft, ClipboardList, FileText, Pencil, RadioTower, Trash2 } from 'lucide-react'
 import { Page } from '@/components/layout/shell'
 import { MatchHeader } from '@/components/domain/match-header'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,7 @@ import { ErrorNote, Panel, PanelHeader, Spinner } from '@/components/ui/misc'
 import { useApi, useApiMutation } from '@/lib/query'
 import { useSession } from '@/lib/session'
 import { EditMatchDialog } from './edit-match'
+import { MatchStatisticsPanel } from './statistics-panel'
 
 export function MatchDetailPage() {
   const { id = '' } = useParams()
@@ -49,6 +50,11 @@ export function MatchDetailPage() {
             <Button size="sm" variant={m.status === 'scheduled' ? 'primary' : 'secondary'} onClick={() => navigate(`/matches/${m.id}/lineups`)}>
               <ClipboardList /> {editable ? 'Match sheet & lineups' : 'View match sheet'}
             </Button>
+            {m.status !== 'scheduled' && (
+              <Button size="sm" variant="secondary" onClick={() => navigate(`/reports/${m.id}`)}>
+                <FileText /> Match report
+              </Button>
+            )}
             <span className="self-center text-xs text-muted">
               Lineups: {m.home.code} {m.lineupsConfirmed.home ? 'confirmed' : 'not confirmed'} / {m.away.code} {m.lineupsConfirmed.away ? 'confirmed' : 'not confirmed'}
             </span>
@@ -65,6 +71,7 @@ export function MatchDetailPage() {
           </>
         }
       />
+      {m.status === 'finished' && <MatchStatisticsPanel matchId={m.id} />}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Panel>
           <PanelHeader title="Match officials" />

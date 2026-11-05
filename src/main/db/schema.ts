@@ -418,8 +418,12 @@ export const playerStatistics = sqliteTable('player_statistics', {
   playerId: text('player_id').notNull().references(() => players.id, { onDelete: 'cascade' }),
   teamId: text('team_id').notNull(),
   rosterId: text('roster_id').notNull(),
+  isGoalkeeper: integer('is_goalkeeper', { mode: 'boolean' }).notNull().default(false),
+  /** Started, was brought on, or is named in an active event. */
+  played: integer('played', { mode: 'boolean' }).notNull().default(false),
   goals: integer('goals').notNull().default(0),
   sevenMetreGoals: integer('seven_metre_goals').notNull().default(0),
+  sevenMetreShots: integer('seven_metre_shots').notNull().default(0),
   shots: integer('shots').notNull().default(0),
   assists: integer('assists').notNull().default(0),
   steals: integer('steals').notNull().default(0),
@@ -433,6 +437,7 @@ export const playerStatistics = sqliteTable('player_statistics', {
   shotsFaced: integer('shots_faced').notNull().default(0),
   goalsConceded: integer('goals_conceded').notNull().default(0),
   sevenMetreSaves: integer('seven_metre_saves').notNull().default(0),
+  sevenMetreFaced: integer('seven_metre_faced').notNull().default(0),
   playingTimeMs: integer('playing_time_ms'),
   updatedAt: updatedAt()
 }, (t) => [uniqueIndex('player_statistics_uq').on(t.matchId, t.rosterId), index('player_statistics_player_idx').on(t.playerId)])
@@ -445,11 +450,20 @@ export const teamStatistics = sqliteTable('team_statistics', {
   goals: integer('goals').notNull().default(0),
   shots: integer('shots').notNull().default(0),
   shootingPct: real('shooting_pct'),
+  sevenMetreGoals: integer('seven_metre_goals').notNull().default(0),
+  sevenMetreShots: integer('seven_metre_shots').notNull().default(0),
   technicalFaults: integer('technical_faults').notNull().default(0),
   turnovers: integer('turnovers').notNull().default(0),
+  steals: integer('steals').notNull().default(0),
+  blocks: integer('blocks').notNull().default(0),
+  warnings: integer('warnings').notNull().default(0),
   suspensions: integer('suspensions').notNull().default(0),
+  disqualifications: integer('disqualifications').notNull().default(0),
   timeouts: integer('timeouts').notNull().default(0),
   saves: integer('saves').notNull().default(0),
+  goalsConceded: integer('goals_conceded').notNull().default(0),
+  sevenMetreSaves: integer('seven_metre_saves').notNull().default(0),
+  sevenMetreFaced: integer('seven_metre_faced').notNull().default(0),
   savePct: real('save_pct'),
   updatedAt: updatedAt()
 }, (t) => [uniqueIndex('team_statistics_uq').on(t.matchId, t.side)])
@@ -462,6 +476,12 @@ export const matchReports = sqliteTable('match_reports', {
   template: text('template').notNull(),
   fileName: text('file_name').notNull(),
   bytes: blob('bytes', { mode: 'buffer' }).notNull(),
+  /** Whether the match was finalized when this file was made. */
+  matchState: text('match_state', { enum: ['final', 'provisional'] }).notNull(),
+  /** Fingerprint of the event ledger the file was made from; a later correction changes it. */
+  ledgerDigest: text('ledger_digest').notNull(),
+  /** Fingerprint of the whole report, so an identical report is not stored twice. */
+  contentKey: text('content_key').notNull(),
   generatedBy: text('generated_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: createdAt()
 }, (t) => [index('match_reports_match_idx').on(t.matchId)])

@@ -8,8 +8,19 @@ export interface PlayerTally {
   sevenMetreGoals: number
   sevenMetreShots: number
   assists: number
+  steals: number
+  blocks: number
+  turnovers: number
+  technicalFaults: number
+  warnings: number
+  suspensions: number
+  disqualifications: number
   saves: number
+  /** Shots on target against this goalkeeper: saves plus goals conceded. */
   shotsFaced: number
+  goalsConceded: number
+  sevenMetreSaves: number
+  sevenMetreFaced: number
 }
 
 export interface TeamTally {
@@ -22,9 +33,36 @@ export interface TeamTally {
   turnovers: number
   steals: number
   blocks: number
+  /** Sanctions include those of team officials. */
+  warnings: number
+  suspensions: number
+  disqualifications: number
+  timeouts: number
+  goalsConceded: number
+  sevenMetreSaves: number
+  sevenMetreFaced: number
 }
 
-const emptyPlayer = (): PlayerTally => ({ goals: 0, shots: 0, sevenMetreGoals: 0, sevenMetreShots: 0, assists: 0, saves: 0, shotsFaced: 0 })
+export const emptyPlayerTally = (): PlayerTally => ({
+  goals: 0,
+  shots: 0,
+  sevenMetreGoals: 0,
+  sevenMetreShots: 0,
+  assists: 0,
+  steals: 0,
+  blocks: 0,
+  turnovers: 0,
+  technicalFaults: 0,
+  warnings: 0,
+  suspensions: 0,
+  disqualifications: 0,
+  saves: 0,
+  shotsFaced: 0,
+  goalsConceded: 0,
+  sevenMetreSaves: 0,
+  sevenMetreFaced: 0
+})
+
 const emptyTeam = (): TeamTally => ({
   goals: 0,
   shots: 0,
@@ -34,19 +72,35 @@ const emptyTeam = (): TeamTally => ({
   technicalFaults: 0,
   turnovers: 0,
   steals: 0,
-  blocks: 0
+  blocks: 0,
+  warnings: 0,
+  suspensions: 0,
+  disqualifications: 0,
+  timeouts: 0,
+  goalsConceded: 0,
+  sevenMetreSaves: 0,
+  sevenMetreFaced: 0
 })
 
+const PLAY_FIELDS = { technical_fault: 'technicalFaults', turnover: 'turnovers', steal: 'steals', block: 'blocks' } as const
+const SANCTION_FIELDS = { warning: 'warnings', suspension: 'suspensions', disqualification: 'disqualifications' } as const
+
+export interface Tallies {
+  players: Map<string, PlayerTally>
+  teams: Record<Side, TeamTally>
+}
+
 /**
- * Running counts for the live screen, derived from active ledger events only.
+ * Every statistic of a match, derived from active ledger events only. The live screen, the match
+ * report, the statistics pages and the player profile all read these numbers.
  * Shoot-out throws are excluded: they decide the winner but are not match statistics.
  */
-export function liveTallies(events: readonly LedgerEvent[]): { players: Map<string, PlayerTally>; teams: Record<Side, TeamTally> } {
+export function liveTallies(events: readonly LedgerEvent[]): Tallies {
   const players = new Map<string, PlayerTally>()
   const teams: Record<Side, TeamTally> = { home: emptyTeam(), away: emptyTeam() }
   const p = (id: string) => {
     let t = players.get(id)
-    if (!t) players.set(id, (t = emptyPlayer()))
+    if (!t) players.set(id, (t = emptyPlayerTally()))
     return t
   }
   for (const e of activeEvents(events)) {
@@ -55,14 +109,20 @@ export function liveTallies(events: readonly LedgerEvent[]): { players: Map<stri
     const opp = teams[e.side === 'home' ? 'away' : 'home']
     if (e.type === 'shot' && e.situation !== 'shootout') {
       const goal = e.outcome === 'goal'
+      const saved = e.outcome === 'saved'
       const seven = e.situation === 'seven_metre'
       team.shots++
-      if (goal) team.goals++
+      if (goal) {
+        team.goals++
+        opp.goalsConceded++
+      }
       if (seven) {
         team.sevenMetreShots++
         if (goal) team.sevenMetreGoals++
       }
-      if (e.outcome === 'saved') opp.saves++
+      if (saved) opp.saves++
+      if (seven && (goal || saved)) opp.sevenMetreFaced++
+      if (seven && saved) opp.sevenMetreSaves++
       if (e.rosterId) {
         const s = p(e.rosterId)
         s.shots++
@@ -73,16 +133,28 @@ export function liveTallies(events: readonly LedgerEvent[]): { players: Map<stri
         }
       }
       if (goal && e.assistRosterId) p(e.assistRosterId).assists++
-      if (e.goalkeeperRosterId) {
+      if (e.goalkeeperRosterId && (goal || saved)) {
         const g = p(e.goalkeeperRosterId)
         g.shotsFaced++
-        if (e.outcome === 'saved') g.saves++
+        if (saved) g.saves++
+        if (goal) g.goalsConceded++
+        if (seven) {
+          g.sevenMetreFaced++
+          if (saved) g.sevenMetreSaves++
+        }
       }
     }
-    if (e.type === 'technical_fault') team.technicalFaults++
-    if (e.type === 'turnover') team.turnovers++
-    if (e.type === 'steal') team.steals++
-    if (e.type === 'block') team.blocks++
+    if (e.type === 'timeout') team.timeouts++
+    if (e.type === 'technical_fault' || e.type === 'turnover' || e.type === 'steal' || e.type === 'block') {
+      const field = PLAY_FIELDS[e.type]
+      team[field]++
+      if (e.rosterId) p(e.rosterId)[field]++
+    }
+    if (e.type === 'warning' || e.type === 'suspension' || e.type === 'disqualification') {
+      const field = SANCTION_FIELDS[e.type]
+      team[field]++
+      if (e.rosterId) p(e.rosterId)[field]++
+    }
   }
   return { players, teams }
 }

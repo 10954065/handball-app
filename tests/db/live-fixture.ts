@@ -41,22 +41,32 @@ function team(ctx: Ctx, code: string) {
   return tm
 }
 
+function confirmLineups(ctx: Ctx, matchId: string) {
+  for (const side of ['home', 'away'] as const) {
+    const squad = getMatchSetup(ctx, matchId)[side].squad
+    saveLineup(ctx, {
+      matchId,
+      side,
+      entries: squad.map((p) => ({ playerId: p.playerId, jerseyNumber: p.jerseyNumber, isStarting: p.jerseyNumber <= 7, isStartingGk: p.jerseyNumber === 1, isCaptain: p.jerseyNumber === 4 })),
+      officials: [{ slot: 'A', name: `Coach ${side}`, role: 'Head coach' }]
+    })
+    confirmLineup(ctx, { matchId, side })
+  }
+  const setup = getMatchSetup(ctx, matchId)
+  const ids = (side: 'home' | 'away') => new Map(setup[side].entries.map((e) => [e.jerseyNumber, e.rosterId]))
+  return { matchId, home: ids('home'), away: ids('away') }
+}
+
 /** A match with both lineups confirmed (#1-#7 start, #1 in goal). Returns roster ids by side and jersey. */
 export function readyMatch(ctx: Ctx, rules?: RulesConfig) {
   const h = team(ctx, 'HOM')
   const a = team(ctx, 'AWY')
   const match = createMatch(ctx, { homeTeamId: h.id, awayTeamId: a.id, scheduledAt: Date.now(), stage: 'friendly', officials: [], rules })
-  for (const side of ['home', 'away'] as const) {
-    const squad = getMatchSetup(ctx, match.id)[side].squad
-    saveLineup(ctx, {
-      matchId: match.id,
-      side,
-      entries: squad.map((p) => ({ playerId: p.playerId, jerseyNumber: p.jerseyNumber, isStarting: p.jerseyNumber <= 7, isStartingGk: p.jerseyNumber === 1, isCaptain: p.jerseyNumber === 4 })),
-      officials: [{ slot: 'A', name: `Coach ${side}`, role: 'Head coach' }]
-    })
-    confirmLineup(ctx, { matchId: match.id, side })
-  }
-  const setup = getMatchSetup(ctx, match.id)
-  const ids = (side: 'home' | 'away') => new Map(setup[side].entries.map((e) => [e.jerseyNumber, e.rosterId]))
-  return { matchId: match.id, home: ids('home'), away: ids('away') }
+  return { ...confirmLineups(ctx, match.id), homeTeamId: h.id, awayTeamId: a.id }
+}
+
+/** A further match between two existing teams. */
+export function rematch(ctx: Ctx, homeTeamId: string, awayTeamId: string, rules?: RulesConfig) {
+  const match = createMatch(ctx, { homeTeamId, awayTeamId, scheduledAt: Date.now() + 1000, stage: 'friendly', officials: [], rules })
+  return { ...confirmLineups(ctx, match.id), homeTeamId, awayTeamId }
 }

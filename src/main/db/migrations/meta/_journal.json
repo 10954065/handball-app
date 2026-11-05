@@ -22,6 +22,13 @@
       "when": 1793911456162,
       "tag": "0002_live_timeouts",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1793913830861,
+      "tag": "0003_statistics_reports",
+      "breakpoints": true
     }
   ]
 }

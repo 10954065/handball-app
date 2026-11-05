@@ -8,6 +8,7 @@ import { systemHandlers } from './ipc/handlers/system'
 import { adminHandlers } from './ipc/handlers/admin'
 import { lineupHandlers } from './ipc/handlers/lineups'
 import { liveHandlers } from './ipc/handlers/live'
+import { reportHandlers } from './ipc/handlers/reports'
 import { ctxOf } from './restore'
 import type { Ctx } from './services/ctx'
 import { getSettings } from './services/settings'
@@ -30,6 +31,7 @@ const handlers: HandlerMap = {
   ...adminHandlers,
   ...lineupHandlers,
   ...liveHandlers,
+  ...reportHandlers,
   'live.finish': (input, rc) => {
     const out = liveHandlers['live.finish'](input, rc)
     if (getSettings(rc).backup.onMatchFinalize) void backups?.runOnce('match finalized', true)

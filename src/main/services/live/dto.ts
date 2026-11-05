@@ -91,7 +91,7 @@ function timeoutStatus(d: LiveData, s: Side): LiveSideDTO['timeouts'] {
   return { used, remaining, allowed: check.allowed, reason: check.reason }
 }
 
-function events(ctx: Ctx, d: LiveData, correctable: boolean): LiveEventDTO[] {
+export function liveEvents(ctx: Ctx, d: LiveData, correctable: boolean): LiveEventDTO[] {
   const byId = new Map(d.roster.map((r) => [r.id, r]))
   const who = (id: string | null): LiveEventPlayer | null => {
     const r = id ? byId.get(id) : undefined
@@ -173,7 +173,7 @@ export function buildLiveDTO(ctx: Ctx, d: LiveData): LiveMatchDTO {
     clock: clockView(ctx, d.clock, d.period),
     home: side(d, 'home', state, tallies),
     away: side(d, 'away', state, tallies),
-    events: events(ctx, d, canCorrect(ctx, d)),
+    events: liveEvents(ctx, d, canCorrect(ctx, d)),
     periodScores,
     shootout: currentShootout(d),
     timeout: timeoutView(ctx, d.row.id),

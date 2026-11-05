@@ -5,6 +5,7 @@ import type { LiveMatchDTO } from '@shared/dto'
 import { AppError } from '@shared/errors'
 import { matchClock, matches, matchPeriods } from '../../db/schema'
 import { audit } from '../audit'
+import { syncMatchStatistics } from '../statistics'
 import { type Ctx, nowOf, requireUser, tx, uuid } from '../ctx'
 import { clockView, setClockTo, startClock, stopClock, syncSuspensions } from './clock'
 import { buildLiveDTO, upcomingPeriod } from './dto'
@@ -206,6 +207,7 @@ export function finishMatch(ctx: Ctx, input: { matchId: string; force: boolean }
       .run()
     ctx.db.update(matchClock).set({ phase: 'finished', updatedAt: at }).where(eq(matchClock.matchId, input.matchId)).run()
     audit(ctx, { action: 'live.match.finish', entity: 'matches', entityId: input.matchId, matchId: input.matchId, after: values })
+    syncMatchStatistics(ctx, input.matchId)
   })
   return getLive(ctx, input.matchId)
 }
@@ -217,4 +219,5 @@ export function refreshFinalResult(ctx: Ctx, matchId: string): void {
   const values = resultValues(d)
   ctx.db.update(matches).set({ ...values, amended: true, updatedAt: nowOf(ctx) }).where(eq(matches.id, matchId)).run()
   audit(ctx, { action: 'live.match.amend', entity: 'matches', entityId: matchId, matchId, before: { homeScore: d.row.homeScore, awayScore: d.row.awayScore }, after: values })
+  syncMatchStatistics(ctx, matchId)
 }

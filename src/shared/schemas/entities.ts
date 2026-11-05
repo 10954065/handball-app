@@ -152,7 +152,11 @@ export const matchListQuery = z
   .object({
     status: z.array(z.enum(['scheduled', 'ready', 'live', 'finished', 'abandoned'])).optional(),
     seasonId: uuid.optional(),
+    competitionId: uuid.optional(),
     teamId: uuid.optional(),
+    /** Scheduled between these times (inclusive). */
+    from: z.number().int().optional(),
+    to: z.number().int().optional(),
     search: z.string().max(100).optional(),
     limit: z.number().int().min(1).max(1000).default(500)
   })

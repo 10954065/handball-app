@@ -13,14 +13,17 @@ import type {
   LiveMatchDTO,
   LiveSanctionResultDTO,
   MatchDetailDTO,
+  MatchReportDTO,
   MatchSetupDTO,
   MatchSummaryDTO,
   OfficialDTO,
   PlayerDetailDTO,
   PlayerDTO,
+  ReportFileDTO,
   SeasonDTO,
   SessionUser,
   StandingRowDTO,
+  StatisticsOverviewDTO,
   TeamDetailDTO,
   TeamDTO,
   UserDTO,
@@ -65,6 +68,7 @@ import {
   startTimeoutSchema,
   voidEventSchema
 } from '../schemas/live'
+import { generateReportSchema, reportListQuery, statisticsQuery } from '../schemas/reports'
 
 const archiveInput = z.object({ id: z.string().uuid(), archived: z.boolean() })
 
@@ -177,6 +181,15 @@ export const contract = {
   'live.timeoutStart': channel<LiveMatchDTO>()('operate_match', startTimeoutSchema),
   'live.timeoutEnd': channel<LiveMatchDTO>()('operate_match', matchRef),
   'live.openScoreboard': channel<void>()('authenticated', matchRef),
+
+  // statistics and reports
+  'statistics.overview': channel<StatisticsOverviewDTO>()('authenticated', statisticsQuery),
+  'statistics.export': channel<{ path: string } | null>()('authenticated', statisticsQuery),
+  'reports.get': channel<MatchReportDTO>()('authenticated', matchRef),
+  'reports.list': channel<ReportFileDTO[]>()('authenticated', reportListQuery),
+  'reports.generate': channel<ReportFileDTO>()('operate_match', generateReportSchema),
+  'reports.saveAs': channel<{ path: string } | null>()('authenticated', idInput),
+  'reports.print': channel<{ printed: boolean }>()('authenticated', matchRef),
 
   // demonstration mode
   'demo.enter': channel<void>()('public', noInput),
