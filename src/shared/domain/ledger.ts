@@ -24,8 +24,18 @@ export interface DerivedMatchState {
   timers: ReductionTimer[]
 }
 
+/** Within a period, period_start comes first and period_end last; otherwise match time, then entry order. */
+const boundaryRank = (e: LedgerEvent): number => (e.type === 'period_start' ? 0 : e.type === 'period_end' ? 2 : 1)
+
+/**
+ * Chronological order of the ledger. Ordering by match time (not entry order) means a corrected
+ * event that replaces an earlier one keeps its place in the match.
+ */
+export const compareEvents = (a: LedgerEvent, b: LedgerEvent): number =>
+  a.periodSeq - b.periodSeq || boundaryRank(a) - boundaryRank(b) || a.matchMs - b.matchMs || a.seq - b.seq
+
 export const activeEvents = (events: readonly LedgerEvent[]): LedgerEvent[] =>
-  events.filter((e) => e.status === 'active').sort((a, b) => a.seq - b.seq)
+  events.filter((e) => e.status === 'active').sort(compareEvents)
 
 export function isGoal(e: LedgerEvent): boolean {
   return e.type === 'shot' && e.outcome === 'goal'

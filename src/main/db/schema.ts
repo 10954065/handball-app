@@ -278,6 +278,10 @@ export const matchClock = sqliteTable('match_clock', {
   baseMs: integer('base_ms').notNull().default(0),
   /** Wall-clock time the current run started (crash recovery only). */
   runStartedWall: integer('run_started_wall'),
+  /** Monotonic timestamp (performance.now of the owning process) at which the current run started. */
+  runStartedMono: real('run_started_mono'),
+  /** Process instance that owns the running clock. A different boot id means the app was restarted. */
+  bootId: text('boot_id'),
   /** Last checkpoint of elapsed playing time while running. */
   checkpointMs: integer('checkpoint_ms').notNull().default(0),
   checkpointWall: integer('checkpoint_wall'),

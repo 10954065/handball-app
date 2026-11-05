@@ -21,7 +21,7 @@ describe('ledger-derived match state', () => {
   })
 
   it('records the score at each period end', () => {
-    const events = [goal('home', 9, 10_000), ev('period_end', { side: null, periodSeq: 1, matchMs: 1_800_000 }), goal('away', 3, 1_900_000)]
+    const events = [goal('home', 9, 10_000), ev('period_end', { side: null, periodSeq: 1, matchMs: 1_800_000 }), goal('away', 3, 1_900_000, { periodSeq: 2 })]
     const s = deriveMatchState(roster, officialsFixture, events, 2_000_000, SUSP)
     expect(s.scoreByPeriod.get(1)).toEqual({ home: 1, away: 0 })
   })

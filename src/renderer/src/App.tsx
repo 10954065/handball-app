@@ -14,6 +14,9 @@ import { CompetitionDetailPage } from '@/pages/competitions/detail'
 import { MatchesPage } from '@/pages/matches'
 import { MatchDetailPage } from '@/pages/matches/detail'
 import { LineupsPage } from '@/pages/lineups'
+import { LiveIndexPage } from '@/pages/live'
+import { MatchCentrePage } from '@/pages/live/centre'
+import { ScoreboardPage } from '@/pages/scoreboard'
 import { OfficialsPage } from '@/pages/officials'
 import { PlayersPage } from '@/pages/players'
 import { PlayerDetailPage } from '@/pages/players/detail'
@@ -22,6 +25,10 @@ import { TeamDetailPage } from '@/pages/teams/detail'
 
 /** Routes per navigation section. Sections without an entry are not part of this build yet. */
 const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> = {
+  '/live': [
+    { path: 'live', element: <LiveIndexPage /> },
+    { path: 'live/:id', element: <MatchCentrePage /> }
+  ],
   '/settings': [{ path: 'settings', element: <SettingsPage /> }],
   '/teams': [
     { path: 'teams', element: <TeamsPage /> },
@@ -44,6 +51,7 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
 }
 
 const router = createHashRouter([
+  { path: '/scoreboard/:id', element: <ScoreboardPage /> },
   {
     path: '/',
     element: <AuthGate />,

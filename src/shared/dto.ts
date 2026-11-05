@@ -1,5 +1,7 @@
 import type {
   CompetitionType,
+  EventStatus,
+  EventType,
   Gender,
   MatchStage,
   MatchStatus,
@@ -7,9 +9,18 @@ import type {
   Permission,
   Position,
   RegistrationStatus,
-  Role
+  Role,
+  ShotOutcome,
+  ShotSituation,
+  ShotZone,
+  Side
 } from './domain/constants'
+import type { ShootoutStatus } from './domain/flow'
+import type { ClockPhase } from './domain/live'
+import type { PeriodDef } from './domain/periods'
 import type { RulesConfig } from './domain/rules'
+import type { TeamTally } from './domain/tally'
+import type { CourtStatus } from './domain/types'
 import type { AppSettings } from './schemas/settings'
 
 export interface SessionUser {
@@ -375,4 +386,103 @@ export interface MatchSetupDTO {
   locked: boolean
   home: SideSetupDTO
   away: SideSetupDTO
+}
+
+// ---------------------------------------------------------------------------------------------
+// Live match (phase 4)
+// ---------------------------------------------------------------------------------------------
+
+export interface LivePlayerDTO {
+  rosterId: string
+  jerseyNumber: number
+  name: string
+  position: Position | null
+  photoMediaId: string | null
+  isGoalkeeper: boolean
+  isCaptain: boolean
+  status: CourtStatus
+  goals: number
+  shots: number
+  assists: number
+  saves: number
+  shotsFaced: number
+}
+
+export interface LiveSideDTO {
+  side: Side
+  teamId: string
+  name: string
+  code: string
+  color: string
+  logoMediaId: string | null
+  score: number
+  shootoutScore: number
+  players: LivePlayerDTO[]
+  officials: TeamOfficialDTO[]
+  onCourt: number
+  allowedOnCourt: number
+  stats: TeamTally
+}
+
+export interface LiveEventPlayer {
+  rosterId: string
+  jerseyNumber: number
+  name: string
+}
+
+export interface LiveEventDTO {
+  id: string
+  seq: number
+  type: EventType
+  side: Side | null
+  periodSeq: number
+  periodLabel: string
+  matchMs: number
+  outcome: ShotOutcome | null
+  situation: ShotSituation | null
+  zone: ShotZone | null
+  player: LiveEventPlayer | null
+  assist: LiveEventPlayer | null
+  goalkeeper: LiveEventPlayer | null
+  inPlayer: LiveEventPlayer | null
+  /** Note text, clock adjustment reason or correction reason. */
+  text: string | null
+  status: EventStatus
+  voidReason: string | null
+  replacesEventId: string | null
+  recordedBy: string | null
+  wallTime: number
+  /** Score after this event (goals only). */
+  scoreAfter: { home: number; away: number } | null
+  /** Whether the operator may void or edit this event. */
+  correctable: boolean
+  editable: boolean
+}
+
+export interface LiveClockDTO {
+  phase: ClockPhase
+  periodSeq: number
+  running: boolean
+  elapsedMs: number
+  /** The application was closed while the clock was running; the operator must choose the time. */
+  needsRecovery: boolean
+  recovery: { checkpointMs: number; checkpointWall: number | null; wallElapsedMs: number | null } | null
+}
+
+export interface LiveMatchDTO {
+  match: MatchDetailDTO
+  plan: PeriodDef[]
+  period: PeriodDef | null
+  /** The next period to start from a break, or null when the match can be finished. */
+  nextPeriod: PeriodDef | null
+  clock: LiveClockDTO
+  home: LiveSideDTO
+  away: LiveSideDTO
+  /** Newest first, including voided events (shown struck through). */
+  events: LiveEventDTO[]
+  periodScores: { periodSeq: number; label: string; home: number; away: number }[]
+  shootout: ShootoutStatus | null
+  canFinish: boolean
+  breakStartedWall: number | null
+  serverWall: number
 }

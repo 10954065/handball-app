@@ -2,6 +2,45 @@
 
 All notable changes to HMMS are recorded here.
 
+## [0.4.0] - Phase 4: Live match engine - 2026-11-05
+
+### Added
+- Live Match Centre: matches in progress, matches ready to start and fixtures waiting for
+  lineups; the match centre with scoreboard, both teams as jersey tiles, event entry and
+  timeline.
+- Match clock owned by the main process: derived from a monotonic anchor, never counted tick
+  by tick, stops exactly at the end of a period, and writes a recovery checkpoint every second.
+- Crash recovery: a clock left running by a previous process is detected on the next start.
+  Recorded events are kept, and the operator chooses the time to continue from.
+- Period flow: halves, breaks with a countdown, overtime and penalty shoot-out as the match
+  rules and score require. Ending a period early needs confirmation.
+- Goals and shots with outcome, situation and zone; technical faults, turnovers, steals, blocks,
+  notes and substitutions. The opposing goalkeeper on court is credited automatically.
+- Two-click entry (tile, outcome) and full keyboard operation: Space for the clock, H or A and a
+  jersey number to select a player, letters to record, Ctrl+Z to undo, Esc to clear.
+- Corrections: void or edit with a required reason. The original stays in the ledger, struck
+  through; every correction is audited. Finalized matches can be corrected by administrators
+  only, which rewrites the result and marks the match as amended.
+- Finalizing a match writes the result from the ledger, and standings pick it up.
+- Second-screen public scoreboard, using an external display when one is connected.
+- Existing settings now take effect: advanced statistics, assist prompt, court presence
+  tracking, confirmation of critical actions, period-end horn, backup on finalize, and scoreboard
+  logos and full screen.
+- Demo mode includes a sample friendly with both lineups confirmed.
+- Closing HMMS while a clock is running asks for confirmation and stops the clock.
+- Migration `0001_live_clock` adds the monotonic anchor and boot id to `match_clock`.
+
+### Changed
+- The ledger is ordered by period, match time and entry order, so a corrected event keeps its
+  place in the match.
+
+### Not yet available
+- Warnings, suspensions, disqualifications and team time-outs cannot be entered until phase 5.
+
+### Tests
+- 122 unit, database and UI tests and 6 end-to-end flows, including a real kill of the main
+  process followed by recovery.
+
 ## [0.3.0] - Phase 3: Starting lineups - 2026-11-05
 
 ### Added

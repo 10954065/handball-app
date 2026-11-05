@@ -103,7 +103,9 @@ test('competitions, seasons and matches can be created and persist', async () =>
   await page.screenshot({ path: 'test-results/phase2-competition.png' })
 
   await nav(page, 'Dashboard')
-  await expect(page.getByText('Upcoming matches')).toBeVisible()
+  await expect(page.getByText('Upcoming matches', { exact: true })).toBeVisible()
+  // The cached empty state may show briefly while the dashboard refreshes.
+  await expect(page.getByText('No upcoming matches')).toBeHidden()
   await page.screenshot({ path: 'test-results/phase2-dashboard.png' })
   await app.close()
 

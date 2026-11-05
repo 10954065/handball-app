@@ -39,7 +39,7 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 | `match_lineups` | Per-side lineup confirmation (who, when). |
 | `match_rosters` | Match sheet snapshot of each player: jersey, name, position, photo, GK/captain/starter flags. |
 | `match_team_officials` | Team officials A-D on the match sheet. |
-| `match_clock` | Persisted clock state: phase, period, base ms, run start (wall), checkpoint. |
+| `match_clock` | Persisted clock state: phase, period, base ms, run start (wall and monotonic), owning process id, checkpoint. |
 | `match_periods` | Period records: kind, start/end, score at end. |
 | `match_events` | The ledger (shots, sanctions, time-outs, substitutions, period markers). |
 | `suspensions` | One row per suspension/disqualification reduction (mirrors the ledger, for reporting). |

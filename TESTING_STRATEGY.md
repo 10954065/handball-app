@@ -3,7 +3,7 @@
 | Layer | Tool | Location | What it proves |
 | --- | --- | --- | --- |
 | Rules engine (unit) | Vitest, node | `tests/unit` | Clock arithmetic, period plans, discipline, time-outs, lineup validation, ledger derivation. |
-| Services + database (integration) | Vitest against real SQLite files | `tests/db` | Migrations, constraints, transactions, auth, settings, backup/verify, and (later) match engine and statistics. |
+| Services + database (integration) | Vitest against real SQLite files | `tests/db` | Migrations, constraints, transactions, auth, settings, backup/verify, the live match engine with simulated time and crashes, and (later) statistics. |
 | UI components | Vitest + React Testing Library, jsdom, mocked preload bridge | `tests/ui` | Forms, validation, confirmation of critical actions. |
 | End-to-end | Playwright driving the built Electron app | `tests/e2e` | Real application: first-run setup, persistence across restarts, backup, demo mode, live match flows. |
 

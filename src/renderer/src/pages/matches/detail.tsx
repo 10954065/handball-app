@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, ClipboardList, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Pencil, RadioTower, Trash2 } from 'lucide-react'
 import { Page } from '@/components/layout/shell'
 import { MatchHeader } from '@/components/domain/match-header'
 import { Button } from '@/components/ui/button'
@@ -41,7 +41,12 @@ export function MatchDetailPage() {
         m={m}
         actions={
           <>
-            <Button size="sm" onClick={() => navigate(`/matches/${m.id}/lineups`)}>
+            {m.status !== 'scheduled' && m.status !== 'abandoned' && (
+              <Button size="sm" variant={m.status === 'finished' ? 'secondary' : 'success'} onClick={() => navigate(`/live/${m.id}`)}>
+                <RadioTower /> {m.status === 'finished' ? 'Match record & timeline' : m.status === 'live' ? 'Open match centre' : 'Go to match centre'}
+              </Button>
+            )}
+            <Button size="sm" variant={m.status === 'scheduled' ? 'primary' : 'secondary'} onClick={() => navigate(`/matches/${m.id}/lineups`)}>
               <ClipboardList /> {editable ? 'Match sheet & lineups' : 'View match sheet'}
             </Button>
             <span className="self-center text-xs text-muted">

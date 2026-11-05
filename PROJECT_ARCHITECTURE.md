@@ -72,3 +72,15 @@ running suspensions and statistics are derived by pure functions in `src/shared/
 (`deriveMatchState`, `planSanction`, `checkTimeout`, `validateLineup`). The main process owns
 the match clock (monotonic `performance.now()` anchor, persisted checkpoints for recovery) and
 pushes snapshots to every window, including the optional second-screen scoreboard.
+
+The clock row stores the monotonic start of the current run and the id of the process that
+owns it. A running clock with a different process id means the application stopped unexpectedly:
+it is reported stopped at its last checkpoint until the operator chooses a time. A 250 ms timer
+in the main process stops clocks at the end of a period and writes checkpoints once a second.
+
+Windows display the time by extending the last snapshot with their own monotonic clock and
+resynchronise every 5 seconds and on every `live.changed` push. Event times always come from the
+main process, never from a window.
+
+Live services are in `src/main/services/live` and stay Electron-free. Tests inject the monotonic
+source and process id through `Ctx`, so time and crashes can be simulated exactly.

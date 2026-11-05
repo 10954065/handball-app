@@ -10,9 +10,18 @@ export interface Ctx {
   user: SessionUser | null
   mode: DataMode
   now?: () => number
+  /** Monotonic clock source for the match clock (performance.now by default). */
+  mono?: () => number
+  /** Identifies this process instance. A running clock owned by another boot id was interrupted. */
+  bootId?: string
 }
 
+/** One id per process start: lets the match clock detect that the application was restarted. */
+export const BOOT_ID = crypto.randomUUID()
+
 export const nowOf = (ctx: Ctx): number => (ctx.now ? ctx.now() : Date.now())
+export const monoOf = (ctx: Ctx): number => (ctx.mono ? ctx.mono() : performance.now())
+export const bootIdOf = (ctx: Ctx): string => ctx.bootId ?? BOOT_ID
 
 export function requireUser(ctx: Ctx): SessionUser {
   if (!ctx.user) throw new AppError('UNAUTHENTICATED', 'Please sign in.')

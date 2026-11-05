@@ -189,5 +189,8 @@ describe('demonstration data', () => {
     expect(teams.every((x) => x.name.startsWith('Sample'))).toBe(true)
     expect(teams.every((x) => x.playerCount === 14 && x.captainPlayerId && x.primaryGoalkeeperId)).toBe(true)
     expect(getDashboard(demo).upcoming.length).toBeGreaterThan(0)
+    const ready = listMatches(demo, { status: ['ready'], limit: 50 })
+    expect(ready).toHaveLength(1)
+    expect(ready[0]).toMatchObject({ stage: 'friendly', lineupsConfirmed: { home: true, away: true } })
   })
 })

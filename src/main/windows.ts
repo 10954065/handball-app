@@ -43,8 +43,8 @@ export function createMainWindow(): BrowserWindow {
   return win
 }
 
-/** Optional public scoreboard on a second monitor or projector. */
-export function createScoreboardWindow(fullscreen: boolean): BrowserWindow {
+/** Public scoreboard for a match, on a second monitor or projector when one is connected. */
+export function createScoreboardWindow(matchId: string, fullscreen: boolean): BrowserWindow {
   const primary = screen.getPrimaryDisplay()
   const external = screen.getAllDisplays().find((d) => d.id !== primary.id)
   const target = external ?? primary
@@ -53,6 +53,8 @@ export function createScoreboardWindow(fullscreen: boolean): BrowserWindow {
     y: target.bounds.y + 40,
     width: Math.min(1280, target.workAreaSize.width),
     height: Math.min(720, target.workAreaSize.height),
+    minWidth: 640,
+    minHeight: 360,
     backgroundColor: '#000000',
     title: 'HMMS Scoreboard',
     autoHideMenuBar: true,
@@ -63,8 +65,12 @@ export function createScoreboardWindow(fullscreen: boolean): BrowserWindow {
     if (external && fullscreen) win.setFullScreen(true)
     win.show()
   })
-  loadRoute(win, '/scoreboard')
+  loadScoreboard(win, matchId)
   return win
+}
+
+export function loadScoreboard(win: BrowserWindow, matchId: string): void {
+  loadRoute(win, `/scoreboard/${matchId}`)
 }
 
 /** Harden every web contents: no navigation away, no new windows, no permission prompts. */

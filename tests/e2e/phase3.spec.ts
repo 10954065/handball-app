@@ -9,7 +9,10 @@ test('both starting lineups can be prepared, validated, confirmed and persist', 
   await expect(page.getByText(/Demonstration mode - sample data only/)).toBeVisible()
 
   await nav(page, 'Matches')
-  await page.locator('a[href^="#/matches/"]').first().click()
+  // A league fixture whose match sheets are not prepared yet (the demo friendly is already confirmed).
+  const fixture = page.locator('a[href^="#/matches/"]', { hasText: 'Scheduled' }).first()
+  const href = (await fixture.getAttribute('href'))!
+  await fixture.click()
   await page.getByRole('button', { name: 'Match sheet & lineups' }).click()
   await expect(page.getByRole('heading', { name: 'Match sheet & starting lineups' })).toBeVisible()
 
@@ -33,7 +36,7 @@ test('both starting lineups can be prepared, validated, confirmed and persist', 
   await page.getByRole('button', { name: /Explore demonstration mode/ }).click()
   await nav(page, 'Matches')
   await expect(page.getByText('Lineups ready').first()).toBeVisible()
-  await page.locator('a[href^="#/matches/"]').first().click()
+  await page.locator(`a[href="${href}"]`).first().click()
   await expect(page.getByText(/ACL confirmed \/ KUR confirmed/)).toBeVisible()
   await app.close()
 })

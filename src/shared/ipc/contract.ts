@@ -10,6 +10,7 @@ import type {
   CompetitionDTO,
   DashboardDTO,
   IntegrityDTO,
+  LiveMatchDTO,
   MatchDetailDTO,
   MatchSetupDTO,
   MatchSummaryDTO,
@@ -50,6 +51,17 @@ import { changePasswordSchema, createUserSchema, loginSchema, setupSchema, updat
 import { appSettingsPatchSchema } from '../schemas/settings'
 import { idInput, listQuery, noInput } from '../schemas/common'
 import { saveLineupSchema, sideInputSchema } from '../schemas/lineup'
+import {
+  clockActionSchema,
+  editEventSchema,
+  endPeriodSchema,
+  finishMatchSchema,
+  matchRef,
+  recordEventSchema,
+  recoverClockSchema,
+  setClockSchema,
+  voidEventSchema
+} from '../schemas/live'
 
 const archiveInput = z.object({ id: z.string().uuid(), archived: z.boolean() })
 
@@ -147,6 +159,19 @@ export const contract = {
   'lineups.confirm': channel<MatchSetupDTO>()('operate_match', sideInputSchema),
   'lineups.reopen': channel<MatchSetupDTO>()('operate_match', sideInputSchema),
 
+  // live match centre
+  'live.get': channel<LiveMatchDTO>()('authenticated', matchRef),
+  'live.startPeriod': channel<LiveMatchDTO>()('operate_match', matchRef),
+  'live.clock': channel<LiveMatchDTO>()('operate_match', clockActionSchema),
+  'live.setClock': channel<LiveMatchDTO>()('operate_match', setClockSchema),
+  'live.recoverClock': channel<LiveMatchDTO>()('operate_match', recoverClockSchema),
+  'live.endPeriod': channel<LiveMatchDTO>()('operate_match', endPeriodSchema),
+  'live.finish': channel<LiveMatchDTO>()('operate_match', finishMatchSchema),
+  'live.record': channel<LiveMatchDTO>()('operate_match', recordEventSchema),
+  'live.edit': channel<LiveMatchDTO>()('operate_match', editEventSchema),
+  'live.void': channel<LiveMatchDTO>()('operate_match', voidEventSchema),
+  'live.openScoreboard': channel<void>()('authenticated', matchRef),
+
   // demonstration mode
   'demo.enter': channel<void>()('public', noInput),
   'demo.exit': channel<void>()('public', noInput)
@@ -163,5 +188,7 @@ export interface PushEvents {
   'session.changed': { user: SessionUser | null }
   'data.reloaded': { mode: 'production' | 'demo' }
   'settings.changed': AppSettings
+  /** A live match changed (event recorded, clock started/stopped, period changed). */
+  'live.changed': { matchId: string }
 }
 export type PushEventName = keyof PushEvents

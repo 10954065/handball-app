@@ -5,7 +5,7 @@ team and player registration, starting lineups, a live match centre with scorebo
 goals, discipline, suspensions, time-outs and substitutions, statistics, reports and
 competitions. Built for match secretaries and scorekeepers at the official table.
 
-> Status: **Phases 1-3 (desktop foundation, administration, starting lineups) complete.** Next: live match engine. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
+> Status: **Phases 1-4 (desktop foundation, administration, starting lineups, live match engine) complete.** Next: rules and discipline. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
 
 ## Key properties
 

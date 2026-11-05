@@ -5,6 +5,7 @@ import { teams } from '../db/schema'
 import { createCompetition, createSeason, setSeasonTeams, updateSeason } from './competitions'
 import type { Ctx } from './ctx'
 import { createOfficial, createVenue } from './directory'
+import { confirmLineup, getMatchSetup, saveLineup } from './lineups'
 import { createMatch } from './matches'
 import { createPlayer } from './players'
 import { getSettings, updateSettings } from './settings'
@@ -84,6 +85,23 @@ export function seedDemoData(ctx: Ctx): void {
   setSeasonTeams(ctx, { seasonId: season.id, teams: teamIds.map((teamId) => ({ teamId, groupName: null })) })
   updateSeason(ctx, { id: season.id, name: season.name, startDate: season.startDate, endDate: season.endDate, status: 'active' })
 
+  const matchOfficials = [
+    { officialId: refs[0].id, role: 'Referee' },
+    { officialId: refs[1].id, role: 'Referee' },
+    { officialId: refs[2].id, role: 'Delegate' },
+    { officialId: refs[3].id, role: 'Timekeeper' }
+  ]
+  const friendly = createMatch(ctx, {
+    homeTeamId: teamIds[0],
+    awayTeamId: teamIds[1],
+    venueId: venue.id,
+    scheduledAt: Date.now() + 30 * 60_000,
+    stage: 'friendly',
+    notes: 'Sample friendly with confirmed lineups, ready for the Live Match Centre.',
+    officials: matchOfficials
+  })
+  prepareDemoLineups(ctx, friendly.id)
+
   const day = 24 * 3600_000
   const start = Date.now() + day
   const pairs: [number, number][] = [[0, 1], [2, 3], [0, 2], [1, 3], [0, 3], [1, 2]]
@@ -97,12 +115,31 @@ export function seedDemoData(ctx: Ctx): void {
       scheduledAt: start + Math.floor(i / 2) * 7 * day + (i % 2) * 2 * 3600_000,
       stage: 'league',
       round: Math.floor(i / 2) + 1,
-      officials: [
-        { officialId: refs[0].id, role: 'Referee' },
-        { officialId: refs[1].id, role: 'Referee' },
-        { officialId: refs[2].id, role: 'Delegate' },
-        { officialId: refs[3].id, role: 'Timekeeper' }
-      ]
+      officials: matchOfficials
     })
   )
+}
+
+/** Confirm both match sheets of a demo match: the first seven registered players start. */
+function prepareDemoLineups(ctx: Ctx, matchId: string): void {
+  const setup = getMatchSetup(ctx, matchId)
+  for (const side of ['home', 'away'] as const) {
+    const starters = new Set(JERSEYS.slice(0, 7))
+    saveLineup(ctx, {
+      matchId,
+      side,
+      entries: setup[side].squad.map((p) => ({
+        playerId: p.playerId,
+        jerseyNumber: p.jerseyNumber,
+        isStarting: starters.has(p.jerseyNumber),
+        isStartingGk: p.isPrimaryGoalkeeper,
+        isCaptain: p.isTeamCaptain
+      })),
+      officials: [
+        { slot: 'A', name: setup[side].coach ?? 'Head coach', role: 'Head coach' },
+        { slot: 'B', name: `Sample Assistant ${setup[side].code}`, role: 'Assistant coach' }
+      ]
+    })
+    confirmLineup(ctx, { matchId, side })
+  }
 }

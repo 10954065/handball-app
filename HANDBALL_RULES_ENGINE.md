@@ -30,6 +30,34 @@ scoreboards. Suspension carry-over between periods is therefore automatic.
 The clock (`clock.ts`) derives elapsed time from a monotonic anchor and never counts ticks.
 It stops automatically at the end of a period.
 
+### Period flow (`flow.ts`)
+
+| After | Next |
+| --- | --- |
+| First half | Second half |
+| Second half, winner decided or a draw allowed | Match can be finished |
+| Second half, level and a winner required | First overtime; if overtime is disabled, shoot-out |
+| First half of an overtime | Its second half, whatever the score |
+| Second half of an overtime, level | Next overtime, then shoot-out |
+| Shoot-out | Match can be finished |
+
+If a winner is required, the match is level and no overtime or shoot-out is configured, HMMS
+asks for confirmation before finishing it as a draw.
+
+The shoot-out runs without the match clock. Teams throw alternately. It is decided as soon as
+one team can no longer be caught, or, after the five throws, when a pair of throws separates the
+teams. Shoot-out goals decide the winner but do not count in the match score or statistics.
+
+### Live entry checks (`live.ts`)
+
+HMMS enforces only what it can know: team membership, disqualified or suspended players,
+court presence for substitutions, and shoot-out order. A shot by a player shown on the bench is
+recorded with a warning, because the operator may have missed a rolling substitution.
+
+A correction is checked against the situation at the time of the original event. A substitution
+that later entries depend on, or a shoot-out throw that is not the last one, cannot be changed
+until the later entries have been corrected.
+
 ## Disciplinary rules (IHF 16)
 
 | Situation | HMMS behaviour | Type |
