@@ -11,6 +11,7 @@ import type {
   DashboardDTO,
   IntegrityDTO,
   MatchDetailDTO,
+  MatchSetupDTO,
   MatchSummaryDTO,
   OfficialDTO,
   PlayerDetailDTO,
@@ -48,6 +49,7 @@ import {
 import { changePasswordSchema, createUserSchema, loginSchema, setupSchema, updateUserSchema } from '../schemas/auth'
 import { appSettingsPatchSchema } from '../schemas/settings'
 import { idInput, listQuery, noInput } from '../schemas/common'
+import { saveLineupSchema, sideInputSchema } from '../schemas/lineup'
 
 const archiveInput = z.object({ id: z.string().uuid(), archived: z.boolean() })
 
@@ -138,6 +140,12 @@ export const contract = {
   'matches.create': channel<MatchDetailDTO>()('manage_data', matchInputSchema),
   'matches.update': channel<MatchDetailDTO>()('manage_data', matchUpdateSchema),
   'matches.delete': channel<void>()('manage_data', idInput),
+
+  // lineups (match sheet)
+  'lineups.get': channel<MatchSetupDTO>()('authenticated', idInput),
+  'lineups.save': channel<MatchSetupDTO>()('operate_match', saveLineupSchema),
+  'lineups.confirm': channel<MatchSetupDTO>()('operate_match', sideInputSchema),
+  'lineups.reopen': channel<MatchSetupDTO>()('operate_match', sideInputSchema),
 
   // demonstration mode
   'demo.enter': channel<void>()('public', noInput),

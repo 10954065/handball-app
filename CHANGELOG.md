@@ -2,6 +2,27 @@
 
 All notable changes to HMMS are recorded here.
 
+## [0.3.0] - Phase 3: Starting lineups - 2026-11-05
+
+### Added
+- Match sheet and starting lineup screen for both teams side by side: visual player cards with
+  photograph, large jersey number, name and position; starting seven, substitutes and the
+  not-selected squad pool. One click moves a player between pool, substitutes and starters.
+- Starting goalkeeper and captain designation, live counters (starters, match sheet size,
+  goalkeeper, captain) and live validation with the shared rules engine (max 7 starters,
+  min 5, one starting goalkeeper who must start, unique jerseys, max 16 on the sheet, one
+  captain).
+- "Add whole squad" and "Suggest seven" (primary goalkeeper plus one player per position).
+- Team officials A-D on the match sheet, prefilled from the team staff.
+- Ineligible players (pending, suspended, inactive registration or archived) are shown but
+  cannot be selected.
+- Saved lineups are snapshots (name, position, photo, designations); later roster edits never
+  change them. Drafts may be incomplete; confirmation requires a valid lineup. Editing a
+  confirmed lineup clears the confirmation. When both teams are confirmed the match becomes
+  "Lineups ready" and a final confirmation view shows both starting sevens.
+- The match sheet locks once the match has started.
+- Tests: 8 new database tests and a lineup end-to-end flow (83 unit/db/ui tests, 5 E2E flows).
+
 ## [0.2.0] - Phase 2: Administration - 2026-11-05
 
 ### Added

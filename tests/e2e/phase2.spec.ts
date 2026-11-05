@@ -99,6 +99,7 @@ test('competitions, seasons and matches can be created and persist', async () =>
   await page.getByRole('dialog').getByLabel('Away team').selectOption({ label: 'Kumasi Royals HC' })
   await page.getByRole('dialog').getByRole('button', { name: 'Create match' }).click()
   await expect(page.getByText(/Match M-\d{4}-0001 created/)).toBeVisible()
+  await expect(page.getByRole('dialog')).toHaveCount(0)
   await page.screenshot({ path: 'test-results/phase2-competition.png' })
 
   await nav(page, 'Dashboard')

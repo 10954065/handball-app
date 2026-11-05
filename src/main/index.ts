@@ -6,6 +6,7 @@ import { resolvePaths } from './paths'
 import { registerIpc } from './ipc/register'
 import { systemHandlers } from './ipc/handlers/system'
 import { adminHandlers } from './ipc/handlers/admin'
+import { lineupHandlers } from './ipc/handlers/lineups'
 import { handleMediaProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
 import { createMainWindow, hardenContents, rendererOrigins } from './windows'
@@ -16,6 +17,7 @@ let backups: AutoBackupScheduler | null = null
 const handlers: HandlerMap = {
   ...systemHandlers,
   ...adminHandlers,
+  ...lineupHandlers,
   'settings.update': async (input, rc) => {
     const next = await systemHandlers['settings.update'](input, rc)
     backups?.reschedule()

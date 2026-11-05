@@ -13,6 +13,7 @@ import { CompetitionsPage } from '@/pages/competitions'
 import { CompetitionDetailPage } from '@/pages/competitions/detail'
 import { MatchesPage } from '@/pages/matches'
 import { MatchDetailPage } from '@/pages/matches/detail'
+import { LineupsPage } from '@/pages/lineups'
 import { OfficialsPage } from '@/pages/officials'
 import { PlayersPage } from '@/pages/players'
 import { PlayerDetailPage } from '@/pages/players/detail'
@@ -37,7 +38,8 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
   ],
   '/matches': [
     { path: 'matches', element: <MatchesPage /> },
-    { path: 'matches/:id', element: <MatchDetailPage /> }
+    { path: 'matches/:id', element: <MatchDetailPage /> },
+    { path: 'matches/:id/lineups', element: <LineupsPage /> }
   ]
 }
 

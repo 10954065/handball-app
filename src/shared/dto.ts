@@ -315,3 +315,64 @@ export interface StandingRowDTO {
   goalDifference: number
   points: number
 }
+
+// ---------------------------------------------------------------- lineups (phase 3)
+
+export interface SquadPlayerDTO {
+  playerId: string
+  fullName: string
+  jerseyNumber: number
+  position: Position | null
+  isGoalkeeper: boolean
+  photoMediaId: string | null
+  isTeamCaptain: boolean
+  isPrimaryGoalkeeper: boolean
+  eligible: boolean
+  ineligibleReason: string | null
+}
+
+export interface LineupEntryDTO {
+  rosterId: string
+  playerId: string
+  jerseyNumber: number
+  name: string
+  position: Position | null
+  photoMediaId: string | null
+  isGoalkeeper: boolean
+  isStarting: boolean
+  isStartingGk: boolean
+  isCaptain: boolean
+}
+
+export interface TeamOfficialDTO {
+  id: string
+  slot: 'A' | 'B' | 'C' | 'D'
+  name: string
+  role: string
+}
+
+export interface SideSetupDTO {
+  side: 'home' | 'away'
+  teamId: string
+  teamName: string
+  code: string
+  color: string
+  logoMediaId: string | null
+  coach: string | null
+  assistantCoach: string | null
+  teamManager: string | null
+  squad: SquadPlayerDTO[]
+  entries: LineupEntryDTO[]
+  officials: TeamOfficialDTO[]
+  confirmedAt: number | null
+  confirmedBy: string | null
+  validation: { errors: string[]; warnings: string[] }
+}
+
+export interface MatchSetupDTO {
+  match: MatchDetailDTO
+  /** True once the match has started: the match sheet is then read-only. */
+  locked: boolean
+  home: SideSetupDTO
+  away: SideSetupDTO
+}

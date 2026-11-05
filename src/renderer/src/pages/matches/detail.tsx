@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Pencil, Trash2 } from 'lucide-react'
+import { ArrowLeft, ClipboardList, Pencil, Trash2 } from 'lucide-react'
 import { Page } from '@/components/layout/shell'
 import { MatchHeader } from '@/components/domain/match-header'
 import { Button } from '@/components/ui/button'
@@ -40,13 +40,24 @@ export function MatchDetailPage() {
       <MatchHeader
         m={m}
         actions={
-          can('manage_data') &&
-          editable && (
-            <>
-              <Button size="sm" variant="secondary" onClick={() => setEditing(true)}><Pencil /> Edit schedule & officials</Button>
-              <Button size="sm" variant="ghost" className="ml-auto text-danger" onClick={() => void remove()}><Trash2 /> Delete fixture</Button>
-            </>
-          )
+          <>
+            <Button size="sm" onClick={() => navigate(`/matches/${m.id}/lineups`)}>
+              <ClipboardList /> {editable ? 'Match sheet & lineups' : 'View match sheet'}
+            </Button>
+            <span className="self-center text-xs text-muted">
+              Lineups: {m.home.code} {m.lineupsConfirmed.home ? 'confirmed' : 'not confirmed'} / {m.away.code} {m.lineupsConfirmed.away ? 'confirmed' : 'not confirmed'}
+            </span>
+            {can('manage_data') && editable && (
+              <>
+                <Button size="sm" variant="secondary" className="ml-auto" onClick={() => setEditing(true)}>
+                  <Pencil /> Edit schedule & officials
+                </Button>
+                <Button size="sm" variant="ghost" className="text-danger" onClick={() => void remove()}>
+                  <Trash2 /> Delete fixture
+                </Button>
+              </>
+            )}
+          </>
         }
       />
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
