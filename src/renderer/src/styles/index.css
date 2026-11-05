@@ -1,0 +1,146 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+@import '@fontsource/barlow-condensed/500.css';
+@import '@fontsource/barlow-condensed/600.css';
+@import '@fontsource/barlow-condensed/700.css';
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+/*
+ * HMMS design tokens. Dark "control room" theme by default; light theme for administration.
+ * Semantic event colours are identical in both themes so match officials learn one language:
+ *   goal = green, yellow card = yellow, suspension = orange, red card = red, blue card = blue.
+ */
+:root,
+[data-theme='dark'] {
+  --bg: #070b14;
+  --surface-1: #0d1322;
+  --surface-2: #121a2d;
+  --surface-3: #1a2440;
+  --surface-hover: #1f2b4a;
+  --border: #233050;
+  --border-strong: #31416a;
+  --text: #e8edf7;
+  --text-muted: #8d9bb8;
+  --text-faint: #5f6d8c;
+  --primary: #4c8dff;
+  --primary-strong: #2f6fe6;
+  --primary-fg: #ffffff;
+  --ring: #6aa1ff;
+  --gold: #f5b301;
+  --overlay: rgb(3 6 12 / 0.72);
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --bg: #eef1f7;
+  --surface-1: #ffffff;
+  --surface-2: #f6f8fc;
+  --surface-3: #e9edf5;
+  --surface-hover: #e3e8f2;
+  --border: #d7deea;
+  --border-strong: #bcc6d8;
+  --text: #0e1626;
+  --text-muted: #55627c;
+  --text-faint: #8590a6;
+  --primary: #2563eb;
+  --primary-strong: #1d4fd0;
+  --primary-fg: #ffffff;
+  --ring: #3b82f6;
+  --gold: #c58d00;
+  --overlay: rgb(15 22 38 / 0.45);
+  color-scheme: light;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-hover: var(--surface-hover);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-text: var(--text);
+  --color-muted: var(--text-muted);
+  --color-faint: var(--text-faint);
+  --color-primary: var(--primary);
+  --color-primary-strong: var(--primary-strong);
+  --color-primary-fg: var(--primary-fg);
+  --color-ring: var(--ring);
+  --color-gold: var(--gold);
+  --color-overlay: var(--overlay);
+
+  --color-goal: #22c55e;
+  --color-goal-strong: #16a34a;
+  --color-yellow-card: #facc15;
+  --color-suspension: #f97316;
+  --color-red-card: #ef4444;
+  --color-blue-card: #3b82f6;
+  --color-timeout: #a855f7;
+  --color-danger: #ef4444;
+  --color-warning: #f59e0b;
+  --color-success: #22c55e;
+
+  --font-sans: 'Inter Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Barlow Condensed', 'Inter Variable', sans-serif;
+  --font-mono: 'JetBrains Mono Variable', 'Cascadia Mono', Consolas, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 9px;
+  --radius-lg: 12px;
+  --radius-xl: 16px;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+    overflow: hidden;
+    user-select: none;
+  }
+  input,
+  textarea,
+  [contenteditable] {
+    user-select: text;
+  }
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border-strong);
+    border-radius: 999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

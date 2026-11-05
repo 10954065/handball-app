@@ -1,0 +1,32 @@
+# dependencies
+node_modules/
+
+# build output
+out/
+dist/
+release/
+coverage/
+*.tsbuildinfo
+
+# local data / logs
+*.db
+*.db-wal
+*.db-shm
+*.log
+.env
+.env.*
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# assistant tooling files — never commit
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+.mcp.json
+AGENTS.md
+.serena/
+test-results/
