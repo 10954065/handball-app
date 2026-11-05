@@ -16,7 +16,11 @@ export function Field({ label, htmlFor, error, hint, required, className, childr
     <div className={cn('flex flex-col gap-1.5', className)}>
       <label htmlFor={htmlFor} className="text-[12px] font-semibold uppercase tracking-wider text-muted">
         {label}
-        {required && <span className="ml-0.5 text-danger">*</span>}
+        {required && (
+          <span className="ml-0.5 text-danger" aria-hidden>
+            *
+          </span>
+        )}
       </label>
       {children}
       {error ? (

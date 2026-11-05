@@ -5,6 +5,8 @@ import { initLogger, log } from './logger'
 import { resolvePaths } from './paths'
 import { registerIpc } from './ipc/register'
 import { systemHandlers } from './ipc/handlers/system'
+import { adminHandlers } from './ipc/handlers/admin'
+import { handleMediaProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
 import { createMainWindow, hardenContents, rendererOrigins } from './windows'
 
@@ -13,6 +15,7 @@ let backups: AutoBackupScheduler | null = null
 
 const handlers: HandlerMap = {
   ...systemHandlers,
+  ...adminHandlers,
   'settings.update': async (input, rc) => {
     const next = await systemHandlers['settings.update'](input, rc)
     backups?.reschedule()
@@ -34,6 +37,7 @@ if (!app.requestSingleInstanceLock()) {
     }
   })
 
+  registerMediaScheme()
   app.setAppUserModelId('gh.hmms.desktop')
   app.on('web-contents-created', (_e, contents) => hardenContents(contents))
 
@@ -56,6 +60,7 @@ if (!app.requestSingleInstanceLock()) {
       return
     }
     registerIpc(ctx, handlers, rendererOrigins())
+    handleMediaProtocol(ctx)
     backups = new AutoBackupScheduler(ctx)
     backups.reschedule()
     mainWindow = createMainWindow()

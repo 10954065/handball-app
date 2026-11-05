@@ -1,10 +1,55 @@
 import { z } from 'zod'
 import type { ChannelDef } from './define'
 import { channel } from './define'
-import type { AppInfo, AppSettings, AuditDTO, AuthStatus, BackupDTO, IntegrityDTO, SessionUser, UserDTO } from '../dto'
+import type {
+  AppInfo,
+  AppSettings,
+  AuditDTO,
+  AuthStatus,
+  BackupDTO,
+  CompetitionDTO,
+  DashboardDTO,
+  IntegrityDTO,
+  MatchDetailDTO,
+  MatchSummaryDTO,
+  OfficialDTO,
+  PlayerDetailDTO,
+  PlayerDTO,
+  SeasonDTO,
+  SessionUser,
+  StandingRowDTO,
+  TeamDetailDTO,
+  TeamDTO,
+  UserDTO,
+  VenueDTO
+} from '../dto'
+import {
+  changeJerseySchema,
+  competitionInputSchema,
+  competitionUpdateSchema,
+  matchInputSchema,
+  matchListQuery,
+  matchUpdateSchema,
+  mediaUploadSchema,
+  officialInputSchema,
+  officialUpdateSchema,
+  playerInputSchema,
+  playerListQuery,
+  playerUpdateSchema,
+  seasonInputSchema,
+  seasonTeamsSchema,
+  seasonUpdateSchema,
+  teamInputSchema,
+  teamUpdateSchema,
+  transferSchema,
+  venueInputSchema,
+  venueUpdateSchema
+} from '../schemas/entities'
 import { changePasswordSchema, createUserSchema, loginSchema, setupSchema, updateUserSchema } from '../schemas/auth'
 import { appSettingsPatchSchema } from '../schemas/settings'
-import { idInput, noInput } from '../schemas/common'
+import { idInput, listQuery, noInput } from '../schemas/common'
+
+const archiveInput = z.object({ id: z.string().uuid(), archived: z.boolean() })
 
 /**
  * The complete IPC contract between renderer and main process.
@@ -45,6 +90,54 @@ export const contract = {
       matchId: z.string().uuid().optional()
     })
   ),
+
+  // dashboard & media
+  'dashboard.get': channel<DashboardDTO>()('authenticated', noInput),
+  'media.upload': channel<{ id: string }>()('manage_data', mediaUploadSchema),
+
+  // teams
+  'teams.list': channel<TeamDTO[]>()('authenticated', listQuery),
+  'teams.get': channel<TeamDetailDTO>()('authenticated', idInput),
+  'teams.create': channel<TeamDetailDTO>()('manage_data', teamInputSchema),
+  'teams.update': channel<TeamDetailDTO>()('manage_data', teamUpdateSchema),
+  'teams.archive': channel<TeamDTO>()('manage_data', archiveInput),
+
+  // players
+  'players.list': channel<PlayerDTO[]>()('authenticated', playerListQuery),
+  'players.get': channel<PlayerDetailDTO>()('authenticated', idInput),
+  'players.create': channel<PlayerDTO>()('manage_data', playerInputSchema),
+  'players.update': channel<PlayerDTO>()('manage_data', playerUpdateSchema),
+  'players.archive': channel<PlayerDTO>()('manage_data', archiveInput),
+  'players.transfer': channel<PlayerDTO>()('manage_data', transferSchema),
+  'players.changeJersey': channel<PlayerDTO>()('manage_data', changeJerseySchema),
+
+  // officials & venues
+  'officials.list': channel<OfficialDTO[]>()('authenticated', listQuery),
+  'officials.create': channel<OfficialDTO>()('manage_data', officialInputSchema),
+  'officials.update': channel<OfficialDTO>()('manage_data', officialUpdateSchema),
+  'officials.archive': channel<OfficialDTO>()('manage_data', archiveInput),
+  'venues.list': channel<VenueDTO[]>()('authenticated', listQuery),
+  'venues.create': channel<VenueDTO>()('manage_data', venueInputSchema),
+  'venues.update': channel<VenueDTO>()('manage_data', venueUpdateSchema),
+  'venues.archive': channel<VenueDTO>()('manage_data', archiveInput),
+
+  // competitions & seasons
+  'competitions.list': channel<CompetitionDTO[]>()('authenticated', listQuery),
+  'competitions.get': channel<CompetitionDTO>()('authenticated', idInput),
+  'competitions.create': channel<CompetitionDTO>()('manage_data', competitionInputSchema),
+  'competitions.update': channel<CompetitionDTO>()('manage_data', competitionUpdateSchema),
+  'competitions.archive': channel<CompetitionDTO>()('manage_data', archiveInput),
+  'seasons.create': channel<SeasonDTO>()('manage_data', seasonInputSchema),
+  'seasons.update': channel<SeasonDTO>()('manage_data', seasonUpdateSchema),
+  'seasons.setTeams': channel<SeasonDTO>()('manage_data', seasonTeamsSchema),
+  'seasons.standings': channel<StandingRowDTO[]>()('authenticated', idInput),
+
+  // matches
+  'matches.list': channel<MatchSummaryDTO[]>()('authenticated', matchListQuery),
+  'matches.get': channel<MatchDetailDTO>()('authenticated', idInput),
+  'matches.create': channel<MatchDetailDTO>()('manage_data', matchInputSchema),
+  'matches.update': channel<MatchDetailDTO>()('manage_data', matchUpdateSchema),
+  'matches.delete': channel<void>()('manage_data', idInput),
 
   // demonstration mode
   'demo.enter': channel<void>()('public', noInput),

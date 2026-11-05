@@ -2,6 +2,7 @@ import { expect, test } from '@playwright/test'
 import { existsSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
 import { launch, newDataDir } from './app'
+import { nav } from './helpers'
 
 test('first-run setup, local persistence, backup and sign-in after restart', async () => {
   const dataDir = newDataDir()
@@ -23,7 +24,7 @@ test('first-run setup, local persistence, backup and sign-in after restart', asy
   await page.getByRole('button', { name: 'Back up now' }).click()
   await expect(page.getByText(/Backup created/)).toBeVisible()
 
-  await page.getByRole('link', { name: 'Settings' }).click()
+  await nav(page, 'Settings')
   await page.getByRole('tab', { name: /Backup & restore/ }).click()
   await expect(page.getByRole('cell', { name: 'Manual' }).first()).toBeVisible()
   await page.screenshot({ path: 'test-results/phase1-settings-backup.png' })
@@ -38,7 +39,7 @@ test('first-run setup, local persistence, backup and sign-in after restart', asy
   await page.getByLabel('Password').fill('Handball2026')
   await page.getByRole('button', { name: 'Sign in' }).click()
   await expect(page.getByRole('heading', { name: 'Welcome, Ama' })).toBeVisible()
-  await page.getByRole('link', { name: 'Settings' }).click()
+  await nav(page, 'Settings')
   await expect(page.getByLabel('Association / organisation name')).toHaveValue('Handball Association of Ghana')
   await app.close()
 })
