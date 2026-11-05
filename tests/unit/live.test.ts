@@ -16,6 +16,9 @@ const ctx = (events: LedgerEvent[] = [], over: Partial<EventContext> = {}): Even
   phase: 'in_period',
   period: plan[0],
   shootout: null,
+  onCourtMax: 7,
+  timeoutActive: false,
+  shootoutExcluded: new Set(),
   ...over
 })
 const shot = (over: Partial<Extract<EventDraft, { kind: 'shot' }>> = {}): EventDraft => ({
@@ -64,7 +67,7 @@ describe('live event validation', () => {
     expect(validateDraft(shot({ rosterId: 'away-5' }), ctx()).errors[0]).toMatch(/not on this team/)
     const dq = ev('disqualification', { side: 'home', rosterId: 'home-5', matchMs: 100 })
     expect(validateDraft(shot({ rosterId: 'home-5' }), ctx([dq])).errors[0]).toMatch(/disqualified/)
-    const susp = ev('suspension', { side: 'home', rosterId: 'home-4', matchMs: 500_000 })
+    const susp = ev('suspension', { teamReduction: true, side: 'home', rosterId: 'home-4', matchMs: 500_000 })
     expect(validateDraft(shot({ rosterId: 'home-4' }), ctx([susp])).errors[0]).toMatch(/suspension/)
   })
 

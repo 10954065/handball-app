@@ -9,8 +9,9 @@ import { adminHandlers } from './ipc/handlers/admin'
 import { lineupHandlers } from './ipc/handlers/lineups'
 import { liveHandlers } from './ipc/handlers/live'
 import { ctxOf } from './restore'
+import type { Ctx } from './services/ctx'
 import { getSettings } from './services/settings'
-import { runningClocks, stopAllClocks, tickClocks } from './services/live'
+import { runningClocks, stopAllClocks, tickClocks, tickTimeouts } from './services/live'
 import { handleMediaProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
 import { createMainWindow, createScoreboardWindow, hardenContents, loadScoreboard, rendererOrigins } from './windows'
@@ -125,16 +126,24 @@ if (!app.requestSingleInstanceLock()) {
   })
 }
 
-let tickFailed = false
+const failedTicks = new Set<string>()
+
+/** Run one tick. Each is independent: a failing clock tick must not stop time-outs from ending. */
+function runTick(name: string, tick: (c: Ctx) => string[]): string[] {
+  try {
+    const changed = ctx ? tick(ctxOf(ctx)) : []
+    failedTicks.delete(name)
+    return changed
+  } catch (err) {
+    if (!failedTicks.has(name)) log.error(`Live tick failed: ${name}`, err)
+    failedTicks.add(name)
+    return []
+  }
+}
 
 function tickLiveClocks(): void {
-  if (!ctx) return
-  try {
-    for (const matchId of tickClocks(ctxOf(ctx))) ctx.broadcast('live.changed', { matchId })
-    tickFailed = false
-  } catch (err) {
-    if (!tickFailed) log.error('Match clock tick failed', err)
-    tickFailed = true
+  for (const matchId of new Set([...runTick('clocks', tickClocks), ...runTick('time-outs', tickTimeouts)])) {
+    ctx?.broadcast('live.changed', { matchId })
   }
 }
 

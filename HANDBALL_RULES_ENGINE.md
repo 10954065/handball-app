@@ -44,6 +44,9 @@ It stops automatically at the end of a period.
 If a winner is required, the match is level and no overtime or shoot-out is configured, HMMS
 asks for confirmation before finishing it as a draw.
 
+Players suspended or disqualified at the end of playing time may not take part in the shoot-out
+(IHF 2:2 comment), and a player suspended during it takes no further part.
+
 The shoot-out runs without the match clock. Teams throw alternately. It is decided as soon as
 one team can no longer be caught, or, after the five throws, when a pair of throws separates the
 teams. Shoot-out goals decide the winner but do not count in the match score or statistics.
@@ -79,6 +82,21 @@ until the later entries have been corrected.
 | Disqualification before the game | No team reduction on court. VERIFY (IHF 16:8) | Note |
 | Unsportsmanlike conduct in the last 30 s (8:10 c/d) | Referees decide; HMMS records the disqualification and 7 m. | Record |
 
+A team that is short may bring a player on without anyone going off, but only while it has fewer
+players on court than currently allowed. A player may leave at any time without a replacement,
+which is how a team drops to strength after a team official is suspended.
+
+A sanction given in a break takes effect when play resumes, so its timer starts at the next
+period. A sanction before the throw-off (period 1, clock never started) does not reduce the team.
+
+**Known gap:** the 4-minute team reduction for a disqualification in the circumstances of IHF
+16:9 b-d is not automated. HMMS applies the normal 2-minute reduction, and an operator cannot
+extend it. Confirm the current wording of this rule before relying on it in those situations.
+
+Sanctions cannot be edited. To correct one, void it and record it again. Voiding a suspension also
+voids the automatic disqualification it caused, and an earlier suspension can only be voided after
+the later ones, because suspensions are numbered.
+
 Suspension timers count **playing time** (they stop with the match clock), as IHF 16:3 states
 "two minutes of playing time". The remaining time is always recomputed from the ledger, so it
 is exact after a crash or restart.
@@ -91,10 +109,17 @@ is exact after a crash or restart.
 | Per half | 2 |
 | Last 5 minutes of regular time | 1 |
 | Overtime / shoot-out | Not permitted |
-| Duration | 60 s (wall clock, the match clock is stopped) |
+| Duration | 60 s of real time, while the match clock is stopped |
+| Warning signal | 10 s before the end. VERIFY against IHF 2:10 Clarification 3 |
 
 A faulty request (4th, 3rd in a half, 2nd in the last five minutes, any in overtime) is
 refused with the reason.
+
+Granting a time-out stops the match clock at once. While it runs, shots and play events are
+refused and the clock cannot be started, but substitutions and sanctions can be recorded. It ends
+by itself or when the operator ends it. The clock stays stopped until play restarts. If HMMS
+closes during a time-out, the time-out continues in real time and the clock needs no recovery.
+Voiding a time-out gives it back to the team.
 
 ## Lineups (IHF 4:1, 4:2)
 

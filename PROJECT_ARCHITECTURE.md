@@ -82,5 +82,10 @@ Windows display the time by extending the last snapshot with their own monotonic
 resynchronise every 5 seconds and on every `live.changed` push. Event times always come from the
 main process, never from a window.
 
+Team time-outs run in real time on the same principle: a monotonic start owned by one process,
+with wall time as the fallback after a restart. Suspension timers need no clock of their own,
+because they are derived from match time. The `suspensions`, `timeouts` and `substitutions`
+tables mirror the ledger for reporting and are never the source of truth.
+
 Live services are in `src/main/services/live` and stay Electron-free. Tests inject the monotonic
 source and process id through `Ctx`, so time and crashes can be simulated exactly.

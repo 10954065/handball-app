@@ -27,7 +27,7 @@ describe('ledger-derived match state', () => {
   })
 
   it('tracks suspension timers in playing time and their expiry', () => {
-    const events = [ev('suspension', { side: 'home', rosterId: 'home-5', matchMs: 600_000 })]
+    const events = [ev('suspension', { teamReduction: true, side: 'home', rosterId: 'home-5', matchMs: 600_000 })]
     const during = deriveMatchState(roster, officialsFixture, events, 650_000, SUSP)
     expect(during.courtStatus.get('home-5')).toBe('suspended')
     expect(during.home.reductions).toHaveLength(1)
@@ -39,8 +39,14 @@ describe('ledger-derived match state', () => {
     expect(after.home.reductions).toHaveLength(0)
   })
 
+  it('starts no timer for a suspension without a team reduction, such as in a shoot-out', () => {
+    const s = deriveMatchState(roster, officialsFixture, [ev('suspension', { side: 'home', rosterId: 'home-5', matchMs: 600_000 })], 610_000, SUSP)
+    expect(s.home.reductions).toHaveLength(0)
+    expect(s.suspensions.get('home-5')).toBe(1)
+  })
+
   it('carries a suspension over the half-time break (cumulative match time)', () => {
-    const events = [ev('suspension', { side: 'away', rosterId: 'away-3', matchMs: 1_740_000 })]
+    const events = [ev('suspension', { teamReduction: true, side: 'away', rosterId: 'away-3', matchMs: 1_740_000 })]
     expect(deriveMatchState(roster, officialsFixture, events, 1_800_000, SUSP).away.reductions).toHaveLength(1)
     expect(deriveMatchState(roster, officialsFixture, events, 1_859_999, SUSP).away.reductions).toHaveLength(1)
     expect(deriveMatchState(roster, officialsFixture, events, 1_860_000, SUSP).away.reductions).toHaveLength(0)
@@ -48,9 +54,9 @@ describe('ledger-derived match state', () => {
 
   it('supports multiple simultaneous suspensions with independent timers', () => {
     const events = [
-      ev('suspension', { side: 'home', rosterId: 'home-2', matchMs: 100_000 }),
-      ev('suspension', { side: 'home', rosterId: 'home-3', matchMs: 160_000 }),
-      ev('suspension', { side: 'away', rosterId: 'away-4', matchMs: 170_000 })
+      ev('suspension', { teamReduction: true, side: 'home', rosterId: 'home-2', matchMs: 100_000 }),
+      ev('suspension', { teamReduction: true, side: 'home', rosterId: 'home-3', matchMs: 160_000 }),
+      ev('suspension', { teamReduction: true, side: 'away', rosterId: 'away-4', matchMs: 170_000 })
     ]
     const s = deriveMatchState(roster, officialsFixture, events, 200_000, SUSP)
     expect(s.home.reductions.map((r) => r.endMs)).toEqual([220_000, 280_000])

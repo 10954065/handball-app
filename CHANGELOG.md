@@ -2,6 +2,43 @@
 
 All notable changes to HMMS are recorded here.
 
+## [0.5.0] - Phase 5: Rules and discipline - 2026-11-05
+
+### Added
+- Warnings, 2-minute suspensions, red cards and blue cards for players, by button or keyboard
+  (`Y`, `X`, `R`), with yellow card and suspension markers on the player tiles.
+- Sanctions for team officials A-D from the team board. An official's suspension or
+  disqualification reduces the team on court.
+- Running team reductions with independent countdowns in playing time, on the team board and
+  the public scoreboard. They stop with the clock and carry over breaks.
+- Automatic disqualification on the third suspension, with one team reduction. Voiding the
+  suspension also voids the disqualification.
+- Rule conflicts, such as a second warning for a player, are shown for acknowledgement and the
+  decision is then recorded, with the acknowledgement in the audit log.
+- Team time-outs: the clock stops at once, a countdown shows on both screens, limits are
+  enforced, and a faulty request is refused with the reason.
+- Signals on the operator screen: suspension expiry, time-out warning and time-out end, each
+  following the sound settings.
+- A team can return to strength after a suspension without anyone going off, and a player can
+  leave without a replacement.
+- Migration `0002_live_timeouts` adds the monotonic start and process id to `timeouts`.
+
+### Fixed
+- A suspension started a team reduction timer even where the rules give none, such as in the
+  penalty shoot-out.
+
+### Changed
+- The event entry panel is more compact, so the timeline stays visible with a player selected.
+- Confirmations and errors in the match centre appear in the centre column. As page toasts they
+  could cover the away team's tiles, and stayed there while the pointer was over them.
+
+### Tests
+- 151 unit, database and UI tests and 7 end-to-end flows, each repeated five times without a
+  failure. One test covers each documented discipline and time-out rule.
+
+### Known gaps
+- The 4-minute team reduction of IHF 16:9 b-d is not automated (see HANDBALL_RULES_ENGINE.md).
+
 ## [0.4.0] - Phase 4: Live match engine - 2026-11-05
 
 ### Added

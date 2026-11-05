@@ -31,10 +31,17 @@ export const PLAYS: { kind: PlayKind; label: string; key: string }[] = [
   { kind: 'block', label: 'Block', key: 'K' }
 ]
 
-export const Key = ({ k }: { k: string }) => <kbd className="ml-auto rounded bg-black/20 px-1 font-mono text-[10px] opacity-80">{k}</kbd>
+export const SANCTIONS = [
+  { kind: 'warning', label: 'Warning', key: 'Y', tone: 'border-yellow-card/60 text-yellow-card hover:bg-yellow-card/10' },
+  { kind: 'suspension', label: '2 min', key: 'X', tone: 'border-suspension/60 text-suspension hover:bg-suspension/10' },
+  { kind: 'disqualification', label: 'Red card', key: 'R', tone: 'border-red-card/60 text-red-card hover:bg-red-card/10' }
+] as const
+
+/** Shortcut hint in the corner of a button, so it takes no width from the label. */
+export const Key = ({ k }: { k: string }) => <kbd className="absolute right-1 top-0.5 font-mono text-[9px] leading-none opacity-60">{k}</kbd>
 
 export function Row({ children }: { children: ReactNode }) {
-  return <div className="grid grid-cols-2 gap-2 2xl:grid-cols-4">{children}</div>
+  return <div className="grid grid-cols-4 gap-1.5">{children}</div>
 }
 
 interface ChoiceProps<T extends string> {

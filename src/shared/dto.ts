@@ -401,11 +401,32 @@ export interface LivePlayerDTO {
   isGoalkeeper: boolean
   isCaptain: boolean
   status: CourtStatus
+  warnings: number
+  suspensions: number
   goals: number
   shots: number
   assists: number
   saves: number
   shotsFaced: number
+}
+
+export interface LiveOfficialDTO extends TeamOfficialDTO {
+  warnings: number
+  suspensions: number
+  suspended: boolean
+  disqualified: boolean
+}
+
+/** A team reduction still running. Remaining time is endMs minus the match clock. */
+export interface LiveReductionDTO {
+  eventId: string
+  kind: 'suspension' | 'disqualification'
+  /** Who caused it, e.g. "#9 Mensah" or "Official A". */
+  label: string
+  rosterId: string | null
+  teamOfficialId: string | null
+  startMs: number
+  endMs: number
 }
 
 export interface LiveSideDTO {
@@ -418,10 +439,12 @@ export interface LiveSideDTO {
   score: number
   shootoutScore: number
   players: LivePlayerDTO[]
-  officials: TeamOfficialDTO[]
+  officials: LiveOfficialDTO[]
   onCourt: number
   allowedOnCourt: number
   stats: TeamTally
+  reductions: LiveReductionDTO[]
+  timeouts: { used: number; remaining: number; allowed: boolean; reason: string | null }
 }
 
 export interface LiveEventPlayer {
@@ -445,6 +468,10 @@ export interface LiveEventDTO {
   assist: LiveEventPlayer | null
   goalkeeper: LiveEventPlayer | null
   inPlayer: LiveEventPlayer | null
+  official: { slot: string; name: string } | null
+  blueCard: boolean
+  /** Set when this event is the automatic consequence of another one. */
+  automatic: boolean
   /** Note text, clock adjustment reason or correction reason. */
   text: string | null
   status: EventStatus
@@ -469,6 +496,14 @@ export interface LiveClockDTO {
   recovery: { checkpointMs: number; checkpointWall: number | null; wallElapsedMs: number | null } | null
 }
 
+export interface LiveTimeoutDTO {
+  id: string
+  eventId: string
+  side: Side
+  durationMs: number
+  elapsedMs: number
+}
+
 export interface LiveMatchDTO {
   match: MatchDetailDTO
   plan: PeriodDef[]
@@ -482,7 +517,14 @@ export interface LiveMatchDTO {
   events: LiveEventDTO[]
   periodScores: { periodSeq: number; label: string; home: number; away: number }[]
   shootout: ShootoutStatus | null
+  timeout: LiveTimeoutDTO | null
   canFinish: boolean
   breakStartedWall: number | null
   serverWall: number
+}
+
+export interface LiveSanctionResultDTO {
+  live: LiveMatchDTO
+  /** Consequences to show the operator, e.g. an automatic disqualification. */
+  notes: string[]
 }

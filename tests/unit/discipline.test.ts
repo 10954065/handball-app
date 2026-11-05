@@ -14,7 +14,7 @@ const plan = (req: Partial<SanctionRequest> & Pick<SanctionRequest, 'kind'>, eve
     officialsFixture,
     DEFAULT_RULES
   )
-const susp = (rosterId: string, matchMs = 100_000) => ev('suspension', { side: 'home', rosterId, matchMs })
+const susp = (rosterId: string, matchMs = 100_000) => ev('suspension', { teamReduction: true, side: 'home', rosterId, matchMs })
 
 describe('disciplinary engine', () => {
   it('first warning is recorded without consequences', () => {
@@ -97,7 +97,7 @@ describe('disciplinary engine', () => {
     const warned = [ev('warning', { side: 'home', teamOfficialId: 'home-A' })]
     expect(plan({ kind: 'warning', target: official('home-B') }, warned).warnings.join(' ')).toMatch(/team officials/)
     expect(plan({ kind: 'suspension', target: official('home-A') }).events[0]).toMatchObject({ type: 'suspension', teamReduction: true })
-    const suspended = [ev('suspension', { side: 'home', teamOfficialId: 'home-A' })]
+    const suspended = [ev('suspension', { teamReduction: true, side: 'home', teamOfficialId: 'home-A' })]
     expect(plan({ kind: 'suspension', target: official('home-B') }, suspended).warnings.join(' ')).toMatch(/disqualification/)
   })
 })

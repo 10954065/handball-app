@@ -12,7 +12,11 @@ const TONE: Record<Tone, string> = {
   play: 'text-muted',
   sub: 'text-primary',
   system: 'text-faint',
-  note: 'text-muted'
+  note: 'text-muted',
+  warning: 'text-yellow-card',
+  suspension: 'text-suspension',
+  red: 'text-red-card',
+  timeout: 'text-timeout'
 }
 
 type Filter = 'all' | 'goals' | 'corrections'
@@ -31,7 +35,7 @@ export function Timeline({ live, onEdit, onVoid }: TimelineProps) {
   const [filter, setFilter] = useState<Filter>('all')
   const rows = live.events.filter((e) => matches(e, filter))
   return (
-    <section aria-label="Match timeline" className="flex min-h-0 flex-1 flex-col rounded-xl border border-border bg-surface-1">
+    <section aria-label="Match timeline" className="flex min-h-44 flex-1 flex-col rounded-xl border border-border bg-surface-1">
       <header className="flex items-center justify-between gap-2 border-b border-border px-3 py-2">
         <h2 className="text-[12px] font-semibold uppercase tracking-wider text-muted">Timeline</h2>
         <Segmented
@@ -69,6 +73,10 @@ function EventRow({ e, live, onEdit, onVoid }: { e: LiveEventDTO } & TimelinePro
           {e.player ? (
             <span className="truncate">
               #{e.player.jerseyNumber} {e.player.name}
+            </span>
+          ) : e.official ? (
+            <span className="truncate">
+              Official {e.official.slot} {e.official.name}
             </span>
           ) : (
             e.side && e.type !== 'note' && <span className="text-muted">{live[e.side].code}</span>

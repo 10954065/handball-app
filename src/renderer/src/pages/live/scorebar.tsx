@@ -1,11 +1,13 @@
 import { useEffect, useReducer } from 'react'
-import { Flag, Monitor, Pause, Play, TimerReset, Trophy } from 'lucide-react'
+import { Flag, Hand, Monitor, Pause, Play, TimerReset, Trophy } from 'lucide-react'
+import type { Side } from '@shared/domain/constants'
 import { formatCountdown, formatMatchTime } from '@shared/domain/periods'
 import type { LiveMatchDTO, LiveSideDTO } from '@shared/dto'
 import { TeamCrest } from '@/components/domain/identity'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/cn'
+import { useTimeoutRemaining } from '@/lib/live'
 
 interface ScorebarProps {
   live: LiveMatchDTO
@@ -18,6 +20,8 @@ interface ScorebarProps {
   onEndPeriod: () => void
   onFinish: () => void
   onScoreboard: () => void
+  onTimeout: (side: Side) => void
+  onEndTimeout: () => void
 }
 
 function TeamScore({ team, align, shootout }: { team: LiveSideDTO; align: 'left' | 'right'; shootout: boolean }) {
@@ -34,6 +38,39 @@ function TeamScore({ team, align, shootout }: { team: LiveSideDTO; align: 'left'
         </div>
         {shootout && <div className="mt-1 text-xs font-semibold tabular text-gold">({team.shootoutScore})</div>}
       </div>
+    </div>
+  )
+}
+
+function TimeoutButton({ team, canOperate, busy, onClick }: { team: LiveSideDTO; canOperate: boolean; busy: boolean; onClick: () => void }) {
+  const t = team.timeouts
+  return (
+    <Button
+      variant="outline"
+      className="border-timeout/50 text-timeout hover:bg-timeout/10"
+      disabled={!canOperate || busy || !t.allowed}
+      title={t.reason ?? undefined}
+      onClick={onClick}
+    >
+      <Hand /> Time-out {team.code}
+      <span className="rounded bg-black/20 px-1 text-[11px] tabular">{t.remaining} left</span>
+    </Button>
+  )
+}
+
+/** A team time-out runs in real time while the match clock stands still. */
+function TimeoutBanner({ live, canOperate, onEnd }: { live: LiveMatchDTO; canOperate: boolean; onEnd: () => void }) {
+  const remaining = useTimeoutRemaining(live.timeout)
+  const side = live.timeout!.side
+  return (
+    <div role="status" aria-label="Team time-out" className="relative flex items-center justify-center gap-4 border-t border-timeout/40 bg-timeout/15 px-4 py-1.5">
+      <span className="text-[12px] font-bold uppercase tracking-[0.16em] text-timeout">Team time-out - {live[side].name}</span>
+      <span className="font-mono text-2xl font-bold tabular text-timeout" data-testid="timeout-clock">{formatCountdown(remaining)}</span>
+      {canOperate && (
+        <Button size="sm" variant="secondary" onClick={onEnd}>
+          End time-out
+        </Button>
+      )}
     </div>
   )
 }
@@ -98,7 +135,13 @@ export function Scorebar(p: ScorebarProps) {
         </div>
         <TeamScore team={live.away} align="right" shootout={showShootout} />
       </div>
+      {live.timeout && <TimeoutBanner live={live} canOperate={p.canOperate} onEnd={p.onEndTimeout} />}
       <div className="relative flex flex-wrap items-center justify-center gap-2 border-t border-border px-4 py-2">
+        {inPeriod && !shootoutPeriod && (
+          <span className="mr-auto">
+            <TimeoutButton team={live.home} canOperate={p.canOperate} busy={p.busy} onClick={() => p.onTimeout('home')} />
+          </span>
+        )}
         {p.canOperate && startLabel && (clock.phase !== 'in_period' || status === 'ready') && (
           <Button onClick={p.onStartPeriod} disabled={p.busy}>
             <Flag /> {startLabel}
@@ -106,7 +149,7 @@ export function Scorebar(p: ScorebarProps) {
         )}
         {p.canOperate && inPeriod && !shootoutPeriod && (
           <>
-            <Button variant={clock.running ? 'danger' : 'success'} className="min-w-44" onClick={p.onToggleClock} disabled={p.busy || clock.needsRecovery}>
+            <Button variant={clock.running ? 'danger' : 'success'} className="min-w-44" onClick={p.onToggleClock} disabled={p.busy || clock.needsRecovery || !!live.timeout}>
               {clock.running ? <Pause /> : <Play />} {clock.running ? 'Stop clock' : 'Start clock'}
               <kbd className="ml-1 rounded bg-black/20 px-1 font-mono text-[10px]">Space</kbd>
             </Button>
@@ -116,7 +159,7 @@ export function Scorebar(p: ScorebarProps) {
           </>
         )}
         {p.canOperate && inPeriod && (
-          <Button variant="outline" onClick={p.onEndPeriod} disabled={p.busy || clock.running}>
+          <Button variant="outline" onClick={p.onEndPeriod} disabled={p.busy || clock.running || !!live.timeout}>
             <Flag /> End {shootoutPeriod ? 'shoot-out' : period?.label.toLowerCase()}
           </Button>
         )}
@@ -125,9 +168,12 @@ export function Scorebar(p: ScorebarProps) {
             <Trophy /> Finish match
           </Button>
         )}
-        <Button variant="ghost" className="ml-auto" onClick={p.onScoreboard}>
-          <Monitor /> Public scoreboard
-        </Button>
+        <span className="ml-auto flex items-center gap-2">
+          {inPeriod && !shootoutPeriod && <TimeoutButton team={live.away} canOperate={p.canOperate} busy={p.busy} onClick={() => p.onTimeout('away')} />}
+          <Button variant="ghost" onClick={p.onScoreboard}>
+            <Monitor /> Public scoreboard
+          </Button>
+        </span>
       </div>
     </div>
   )

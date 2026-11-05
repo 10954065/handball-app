@@ -387,6 +387,9 @@ export const timeouts = sqliteTable('timeouts', {
   matchMs: integer('match_ms').notNull(),
   durationMs: integer('duration_ms').notNull(),
   startedWall: integer('started_wall').notNull(),
+  /** Monotonic start of the time-out; only valid for the process in boot_id. */
+  startedMono: real('started_mono'),
+  bootId: text('boot_id'),
   endedWall: integer('ended_wall'),
   status: text('status', { enum: ['active', 'completed', 'voided'] }).notNull().default('active')
 }, (t) => [index('timeouts_match_idx').on(t.matchId)])

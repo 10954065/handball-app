@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, ClipboardList } from 'lucide-react'
-import { toast } from 'sonner'
 import type { ShotOutcome, Side } from '@shared/domain/constants'
 import type { PlayKind } from '@shared/domain/live'
 import type { LiveMatchDTO, LivePlayerDTO } from '@shared/dto'
@@ -12,13 +11,15 @@ import { useApi } from '@/lib/query'
 import { useSession } from '@/lib/session'
 import { abilities, ActionPanel, type EntryState, type Selection } from './action-panel'
 import { MISSES, PLAYS } from './action-parts'
-import { eventSummary, LiveModals, type Modal, usePeriodHorn } from './centre-support'
+import { LiveModals, type Modal } from './centre-support'
 import { RecoveryDialog } from './dialogs'
+import { NoticeStack, useNotices } from './notices'
 import { Scorebar } from './scorebar'
 import { TeamBoard } from './team-board'
 import { Timeline } from './timeline'
-import { useLiveActions } from './use-live-actions'
+import { eventSummary, useLiveActions } from './use-live-actions'
 import { useLiveKeys } from './use-live-keys'
+import { useLiveSignals } from './use-live-signals'
 
 const DEFAULT_ENTRY: EntryState = { situation: 'positional', zone: null }
 const DEFAULT_PREFS = { advancedStats: true, assistPrompt: false, confirmCriticalActions: true, trackCourtPresence: true }
@@ -59,12 +60,13 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
   const prefs = settings?.live ?? DEFAULT_PREFS
   const operator = can('operate_match')
   const canOperate = operator && (live.match.status === 'live' || live.match.status === 'ready')
-  const act = useLiveActions(matchId, prefs.confirmCriticalActions)
+  const notices = useNotices()
+  const act = useLiveActions(matchId, prefs.confirmCriticalActions, notices.push)
   const displayMs = useDisplayClock(live.clock, live.period)
   const [sel, setSel] = useState<{ side: Side; rosterId: string } | null>(null)
   const [entry, setEntry] = useState<EntryState>(DEFAULT_ENTRY)
   const [modal, setModal] = useState<Modal>(null)
-  usePeriodHorn(live, settings?.sound)
+  useLiveSignals(live, settings?.sound)
 
   const found = sel ? live[sel.side].players.find((p) => p.rosterId === sel.rosterId) : undefined
   const selection: Selection | null = sel && found ? { side: sel.side, player: found } : null
@@ -74,11 +76,12 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
     try {
       const data = await act.record(event)
       const e = data.events[0]
-      toast.success(eventSummary(e, data), {
-        duration: 2500,
+      notices.push({
+        tone: 'success',
+        text: eventSummary(e, data),
         action: e.correctable ? { label: 'Undo', onClick: () => setModal({ kind: 'void', event: e }) } : undefined
       })
-      if (benchPlayer) toast.warning(`#${benchPlayer.jerseyNumber} ${benchPlayer.name} is shown on the bench. Check the substitutions.`)
+      if (benchPlayer) notices.push({ tone: 'warning', text: `#${benchPlayer.jerseyNumber} ${benchPlayer.name} is shown on the bench. Check the substitutions.` })
       setSel(null)
       setEntry(DEFAULT_ENTRY)
     } catch (err) {
@@ -102,18 +105,29 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
     if (selection && can_.play) void recordAndConfirm({ kind, side: selection.side, rosterId: selection.player.rosterId })
   }
 
-  const substitute = (other: LivePlayerDTO) => {
+  const substitute = (other: LivePlayerDTO | null) => {
     if (!selection) return
     const off = selection.player.status === 'court'
     setModal(null)
-    const [outId, inId] = off ? [selection.player.rosterId, other.rosterId] : [other.rosterId, selection.player.rosterId]
+    const [outId, inId] = off ? [selection.player.rosterId, other?.rosterId ?? null] : [other?.rosterId ?? null, selection.player.rosterId]
     void recordAndConfirm({ kind: 'substitution', side: selection.side, outRosterId: outId, inRosterId: inId })
+  }
+
+  /** Warnings and suspensions are one action; a red card opens a dialog for the blue card. */
+  const sanction = (kind: 'warning' | 'suspension' | 'disqualification') => {
+    if (!selection || !can_.sanction) return
+    if (kind === 'disqualification') {
+      setModal({ kind: 'red', side: selection.side, player: selection.player })
+      return
+    }
+    const target = { type: 'player' as const, rosterId: selection.player.rosterId }
+    void act.sanction({ kind, side: selection.side, target }).then(() => setSel(null))
   }
 
   const undoLast = () => {
     const last = live.events.find((e) => e.correctable)
     if (last) setModal({ kind: 'void', event: last })
-    else toast.info('There is nothing to undo.')
+    else notices.push({ tone: 'info', text: 'There is nothing to undo.' })
   }
 
   const typed = useLiveKeys(live, canOperate && !modal && !live.clock.needsRecovery, {
@@ -131,6 +145,9 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
       else if (miss && (prefs.advancedStats || can_.shootout)) shot(miss.outcome)
       else if (p && prefs.advancedStats) play(p.kind)
       else if (key === 'U' && can_.substitute) setModal({ kind: 'sub' })
+      else if (key === 'Y') sanction('warning')
+      else if (key === 'X') sanction('suspension')
+      else if (key === 'R') sanction('disqualification')
       else return false
       return true
     }
@@ -144,6 +161,8 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
       trackCourt={prefs.trackCourtPresence}
       disabled={!canOperate}
       armed={typed?.side === side}
+      displayMs={displayMs}
+      onOfficial={(official) => setModal({ kind: 'official', side, official })}
     />
   )
 
@@ -167,11 +186,14 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
         onEndPeriod={() => void act.endPeriod(live.period?.kind === 'shootout' ? 'shoot-out' : (live.period?.label ?? 'period'))}
         onFinish={() => void act.finish()}
         onScoreboard={() => void act.openScoreboard()}
+        onTimeout={(side) => void act.timeoutStart(side)}
+        onEndTimeout={() => void act.timeoutEnd()}
       />
       <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_minmax(340px,400px)_minmax(0,1fr)] gap-3">
         {board('home')}
-        <div className="flex min-h-0 flex-col gap-3">
-          {canOperate && (
+        <div className="relative min-h-0">
+          <div className="flex h-full flex-col gap-3 overflow-y-auto">
+            {canOperate && (
             <ActionPanel
               live={live}
               selection={selection}
@@ -180,6 +202,7 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
               onShot={(o) => shot(o)}
               onPlay={play}
               onSubstitute={() => setModal({ kind: 'sub' })}
+              onSanction={sanction}
               onClear={() => setSel(null)}
               advanced={prefs.advancedStats}
               trackCourt={prefs.trackCourtPresence}
@@ -187,7 +210,9 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
               typed={typed}
             />
           )}
-          <Timeline live={live} onEdit={(event) => setModal({ kind: 'edit', event })} onVoid={(event) => setModal({ kind: 'void', event })} />
+            <Timeline live={live} onEdit={(event) => setModal({ kind: 'edit', event })} onVoid={(event) => setModal({ kind: 'void', event })} />
+          </div>
+          <NoticeStack items={notices.items} onDismiss={notices.dismiss} />
         </div>
         {board('away')}
       </div>
@@ -200,6 +225,7 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
         displayMs={displayMs}
         trackCourt={prefs.trackCourtPresence}
         onSubstitute={substitute}
+        onSanctioned={() => setSel(null)}
         onAssist={(s, a) => shot('goal', s, a, false)}
       />
       {live.clock.needsRecovery && operator && (

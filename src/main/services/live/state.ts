@@ -175,3 +175,15 @@ export function insertEvent(ctx: Ctx, matchId: string, e: NewEvent): string {
     .run()
   return id
 }
+
+/** A team's granted time-outs (voided entries do not count). */
+export function takenTimeouts(d: LiveData, side: Side): { periodSeq: number; matchMs: number }[] {
+  return d.events.filter((e) => e.type === 'timeout' && e.status === 'active' && e.side === side)
+}
+
+/** Players suspended during the shoot-out take no further part in it. */
+export function shootoutExcluded(d: LiveData): Set<string> {
+  if (d.period?.kind !== 'shootout') return new Set()
+  const sanctioned = d.events.filter((e) => e.status === 'active' && e.type === 'suspension' && e.periodSeq === d.period?.seq && e.rosterId)
+  return new Set(sanctioned.map((e) => e.rosterId!))
+}

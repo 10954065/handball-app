@@ -1,11 +1,9 @@
-import { useEffect, useRef } from 'react'
-import type { AppSettings, LiveEventDTO, LiveMatchDTO, LivePlayerDTO } from '@shared/dto'
-import { playHorn } from '@/lib/live'
+import type { Side } from '@shared/domain/constants'
+import type { LiveEventDTO, LiveMatchDTO, LiveOfficialDTO, LivePlayerDTO } from '@shared/dto'
 import type { Selection } from './action-panel'
-import { PickPlayerDialog, SetClockDialog, VoidDialog } from './dialogs'
+import { PickPlayerDialog, SanctionDialog, SetClockDialog, VoidDialog } from './dialogs'
 import { EditEventDialog } from './edit-event'
-import { eventTitle } from './labels'
-import type { useLiveActions } from './use-live-actions'
+import { eventSummary, type useLiveActions } from './use-live-actions'
 
 export type Modal =
   | { kind: 'clock' }
@@ -13,20 +11,9 @@ export type Modal =
   | { kind: 'assist'; scorer: Selection }
   | { kind: 'edit'; event: LiveEventDTO }
   | { kind: 'void'; event: LiveEventDTO }
+  | { kind: 'red'; side: Side; player: LivePlayerDTO }
+  | { kind: 'official'; side: Side; official: LiveOfficialDTO }
   | null
-
-export const eventSummary = (e: LiveEventDTO, live: LiveMatchDTO) =>
-  `${eventTitle(e, live)}${e.player ? ` - #${e.player.jerseyNumber} ${e.player.name}` : ''}${e.side ? ` (${live[e.side].code})` : ''}`
-
-/** Sound the horn when the clock stops at the end of a period (if enabled in settings). */
-export function usePeriodHorn(live: LiveMatchDTO, sound: AppSettings['sound'] | undefined) {
-  const wasRunning = useRef(live.clock.running)
-  useEffect(() => {
-    const atEnd = !!live.period && live.period.kind !== 'shootout' && live.clock.elapsedMs >= live.period.endMs
-    if (wasRunning.current && !live.clock.running && atEnd && sound?.enabled && sound.periodEnd) playHorn(sound.volume)
-    wasRunning.current = live.clock.running
-  }, [live.clock.running, live.clock.elapsedMs, live.period, sound])
-}
 
 interface ModalsProps {
   live: LiveMatchDTO
@@ -36,18 +23,19 @@ interface ModalsProps {
   selection: Selection | null
   displayMs: number
   trackCourt: boolean
-  onSubstitute: (p: LivePlayerDTO) => void
+  onSubstitute: (p: LivePlayerDTO | null) => void
+  onSanctioned: () => void
   onAssist: (scorer: Selection, assistRosterId: string | null) => void
 }
 
-export function LiveModals({ live, modal, setModal, act, selection, displayMs, trackCourt, onSubstitute, onAssist }: ModalsProps) {
+export function LiveModals({ live, modal, setModal, act, selection, displayMs, trackCourt, onSubstitute, onSanctioned, onAssist }: ModalsProps) {
   const close = () => setModal(null)
   const run = async (p: Promise<unknown>) => {
     try {
       await p
       close()
     } catch (err) {
-      act.fail(err)
+      act.failInDialog(err)
     }
   }
   if (!modal) return null
@@ -63,7 +51,8 @@ export function LiveModals({ live, modal, setModal, act, selection, displayMs, t
         description={off ? 'Choose the player coming on.' : 'Choose the player going off.'}
         team={team}
         players={team.players.filter((p) => p.status === (off ? 'bench' : 'court'))}
-        onPick={(p) => p && onSubstitute(p)}
+        noneLabel={off ? 'Nobody comes on' : team.onCourt < team.allowedOnCourt ? 'Nobody goes off' : undefined}
+        onPick={onSubstitute}
         onClose={close}
       />
     )
@@ -88,6 +77,38 @@ export function LiveModals({ live, modal, setModal, act, selection, displayMs, t
   }
   if (modal.kind === 'edit') {
     return <EditEventDialog live={live} event={modal.event} busy={act.busy} onClose={close} onSubmit={(d, ms, reason) => void run(act.edit(modal.event.id, d, ms, reason))} />
+  }
+  if (modal.kind === 'red') {
+    const { side, player } = modal
+    return (
+      <SanctionDialog
+        title={`Red card - #${player.jerseyNumber} ${player.name}`}
+        description="Disqualification for the rest of the match."
+        kinds={['disqualification']}
+        busy={act.busy}
+        onClose={close}
+        onSubmit={(kind, blueCard, reason) => {
+          close()
+          void act.sanction({ kind, side, target: { type: 'player', rosterId: player.rosterId }, blueCard, reason }).then(onSanctioned)
+        }}
+      />
+    )
+  }
+  if (modal.kind === 'official') {
+    const { side, official } = modal
+    return (
+      <SanctionDialog
+        title={`Official ${official.slot} - ${official.name}`}
+        description={`${official.role}. A suspension or disqualification reduces the team on court.`}
+        kinds={['warning', 'suspension', 'disqualification']}
+        busy={act.busy}
+        onClose={close}
+        onSubmit={(kind, blueCard, reason) => {
+          close()
+          void act.sanction({ kind, side, target: { type: 'official', teamOfficialId: official.id }, blueCard, reason })
+        }}
+      />
+    )
   }
   if (modal.kind === 'void') {
     return <VoidDialog title="Void event" summary={eventSummary(modal.event, live)} busy={act.busy} onClose={close} onSubmit={(reason) => void run(act.voidEvent(modal.event.id, reason))} />

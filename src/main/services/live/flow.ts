@@ -6,7 +6,7 @@ import { AppError } from '@shared/errors'
 import { matchClock, matches, matchPeriods } from '../../db/schema'
 import { audit } from '../audit'
 import { type Ctx, nowOf, requireUser, tx, uuid } from '../ctx'
-import { clockView, setClockTo, startClock, stopClock } from './clock'
+import { clockView, setClockTo, startClock, stopClock, syncSuspensions } from './clock'
 import { buildLiveDTO, upcomingPeriod } from './dto'
 import { currentShootout, insertEvent, type LiveData, loadLive, scoreOf, stateNow } from './state'
 
@@ -63,7 +63,7 @@ export function startPeriod(ctx: Ctx, matchId: string): LiveMatchDTO {
   return getLive(ctx, matchId)
 }
 
-function playingPeriod(ctx: Ctx, d: LiveData): PeriodDef {
+export function playingPeriod(ctx: Ctx, d: LiveData): PeriodDef {
   assertLive(ctx, d)
   if (d.clock.phase !== 'in_period' || !d.period) throw new AppError('CONFLICT', 'No period is in progress.')
   return d.period
@@ -75,6 +75,7 @@ export function clockAction(ctx: Ctx, input: { matchId: string; action: 'start' 
   const period = playingPeriod(ctx, d)
   if (period.kind === 'shootout') throw new AppError('CONFLICT', 'The penalty shoot-out is played without the match clock.')
   const running = clockView(ctx, d.clock, period).running
+  if (input.action === 'start' && d.clock.timeoutId) throw new AppError('CONFLICT', 'A team time-out is in progress. End it before restarting the clock.')
   tx(ctx, () => {
     if (input.action === 'start' && !running) {
       if (d.elapsedMs >= period.endMs) throw new AppError('CONFLICT', 'The playing time of this period is over. End the period or correct the clock.')
@@ -100,6 +101,7 @@ export function setClock(ctx: Ctx, input: { matchId: string; ms: number; reason:
   }
   tx(ctx, () => {
     setClockTo(ctx, d.clock, input.ms)
+    syncSuspensions(ctx, input.matchId, input.ms)
     insertEvent(ctx, input.matchId, {
       type: 'clock_adjust',
       periodSeq: period.seq,
@@ -121,6 +123,7 @@ export function recoverClock(ctx: Ctx, input: { matchId: string; resumeAtMs: num
   const ms = p && p.kind !== 'shootout' ? Math.min(Math.max(input.resumeAtMs, p.startMs), p.endMs) : input.resumeAtMs
   tx(ctx, () => {
     setClockTo(ctx, { ...d.clock, running: false }, ms)
+    syncSuspensions(ctx, input.matchId, ms)
     insertEvent(ctx, input.matchId, {
       type: 'clock_adjust',
       periodSeq: d.clock.periodSeq,
@@ -138,6 +141,7 @@ export function endPeriod(ctx: Ctx, input: { matchId: string; force: boolean }):
   const d = loadLive(ctx, input.matchId)
   const period = playingPeriod(ctx, d)
   if (clockView(ctx, d.clock, period).running) throw new AppError('CONFLICT', 'Stop the clock before ending the period.')
+  if (d.clock.timeoutId) throw new AppError('CONFLICT', 'End the team time-out before ending the period.')
   if (!input.force) {
     if (period.kind === 'shootout' && !currentShootout(d)?.decided) {
       throw new AppError('NEEDS_CONFIRMATION', 'The shoot-out has not been decided yet.', ['End the shoot-out anyway?'])

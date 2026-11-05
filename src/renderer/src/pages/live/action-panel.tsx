@@ -4,7 +4,7 @@ import type { PlayKind } from '@shared/domain/live'
 import type { LiveMatchDTO, LivePlayerDTO } from '@shared/dto'
 import { contrastOn } from '@/components/domain/identity'
 import { Button } from '@/components/ui/button'
-import { Choice, IdlePanel, Key, MISSES, PLAYS, Row, SITUATIONS, ZONES } from './action-parts'
+import { Choice, IdlePanel, Key, MISSES, PLAYS, Row, SANCTIONS, SITUATIONS, ZONES } from './action-parts'
 
 export interface EntryState {
   situation: ShotSituation
@@ -24,6 +24,7 @@ interface ActionPanelProps {
   onShot: (outcome: ShotOutcome) => void
   onPlay: (kind: PlayKind) => void
   onSubstitute: () => void
+  onSanction: (kind: 'warning' | 'suspension' | 'disqualification') => void
   onClear: () => void
   advanced: boolean
   trackCourt: boolean
@@ -31,16 +32,20 @@ interface ActionPanelProps {
   typed: { side: Side; digits: string } | null
 }
 
+const COMPACT = 'px-1 text-[12px]'
+
 /** What the selected player can do right now. Shared by the panel and the keyboard shortcuts. */
 export function abilities(live: LiveMatchDTO, sel: Selection | null, trackCourt: boolean) {
   const inPeriod = live.clock.phase === 'in_period' && live.match.status === 'live'
   const shootout = live.period?.kind === 'shootout'
   const st = sel?.player.status
+  const noTimeout = !live.timeout
   return {
     inPeriod,
     shootout,
-    shoot: !!sel && inPeriod && st !== 'disqualified' && st !== 'suspended',
-    play: !!sel && inPeriod && !shootout && st !== 'disqualified',
+    shoot: !!sel && inPeriod && noTimeout && st !== 'disqualified' && st !== 'suspended',
+    play: !!sel && inPeriod && noTimeout && !shootout && st !== 'disqualified',
+    sanction: !!sel && live.match.status === 'live' && (live.clock.phase === 'in_period' || live.clock.phase === 'break') && st !== 'disqualified',
     substitute:
       !!sel && trackCourt && !shootout && live.match.status === 'live' && (live.clock.phase === 'in_period' || live.clock.phase === 'break') && (st === 'court' || st === 'bench')
   }
@@ -71,8 +76,9 @@ export function ActionPanel(p: ActionPanelProps) {
           <X className="size-4" />
         </button>
       </header>
-      <div className="space-y-3 p-4">
+      <div className="space-y-2.5 px-4 py-3">
         {!can.inPeriod && <p className="rounded-md bg-surface-2 px-3 py-2 text-[12.5px] text-muted">Shots and play events are recorded while a period is in progress.</p>}
+        {live.timeout && <p className="rounded-md bg-timeout/15 px-3 py-2 text-[12.5px] text-timeout">Team time-out: substitutions and sanctions can still be recorded.</p>}
         {can.inPeriod && !can.shootout && (
           <>
             <Choice label="Situation" value={p.entry.situation} options={SITUATIONS} onChange={(situation) => p.onEntry({ ...p.entry, situation })} />
@@ -81,13 +87,13 @@ export function ActionPanel(p: ActionPanelProps) {
             )}
           </>
         )}
-        <Button variant="success" size="xl" className="w-full" disabled={!can.shoot || p.busy} onClick={() => p.onShot('goal')}>
+        <Button variant="success" size="lg" className="w-full" disabled={!can.shoot || p.busy} onClick={() => p.onShot('goal')}>
           {goalLabel} <Key k="G" />
         </Button>
         {(p.advanced || can.shootout) && (
           <Row>
             {MISSES.filter((m) => !can.shootout || m.outcome !== 'blocked').map((m) => (
-              <Button key={m.outcome} variant="secondary" disabled={!can.shoot || p.busy} onClick={() => p.onShot(m.outcome)}>
+              <Button key={m.outcome} variant="secondary" size="sm" className={COMPACT} disabled={!can.shoot || p.busy} onClick={() => p.onShot(m.outcome)}>
                 {m.label} <Key k={m.key} />
               </Button>
             ))}
@@ -96,12 +102,19 @@ export function ActionPanel(p: ActionPanelProps) {
         {p.advanced && !can.shootout && (
           <Row>
             {PLAYS.map((a) => (
-              <Button key={a.kind} variant="outline" size="sm" disabled={!can.play || p.busy} onClick={() => p.onPlay(a.kind)}>
+              <Button key={a.kind} variant="outline" size="sm" className={COMPACT} disabled={!can.play || p.busy} onClick={() => p.onPlay(a.kind)}>
                 {a.label} <Key k={a.key} />
               </Button>
             ))}
           </Row>
         )}
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="Sanctions">
+          {SANCTIONS.map((s) => (
+            <Button key={s.kind} variant="outline" size="sm" className={s.tone} disabled={!can.sanction || p.busy} onClick={() => p.onSanction(s.kind)}>
+              {s.label} <Key k={s.key} />
+            </Button>
+          ))}
+        </div>
         {can.substitute && (
           <Button variant="subtle" className="w-full" disabled={p.busy} onClick={p.onSubstitute}>
             <ArrowLeftRight /> {pl.status === 'court' ? 'Substitute off' : 'Bring on'} <Key k="U" />

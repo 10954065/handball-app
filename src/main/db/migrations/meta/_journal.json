@@ -15,6 +15,13 @@
       "when": 1793908577940,
       "tag": "0001_live_clock",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793911456162,
+      "tag": "0002_live_timeouts",
+      "breakpoints": true
     }
   ]
 }

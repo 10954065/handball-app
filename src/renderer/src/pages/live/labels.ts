@@ -1,7 +1,7 @@
 import { SHOT_SITUATION_LABELS, SHOT_ZONE_LABELS } from '@shared/domain/constants'
 import type { LiveEventDTO, LiveMatchDTO } from '@shared/dto'
 
-export type Tone = 'goal' | 'miss' | 'play' | 'sub' | 'system' | 'note'
+export type Tone = 'goal' | 'miss' | 'play' | 'sub' | 'system' | 'note' | 'warning' | 'suspension' | 'red' | 'timeout'
 
 const PLAY_LABELS: Record<string, string> = {
   technical_fault: 'Technical fault',
@@ -35,6 +35,8 @@ export function eventTitle(e: LiveEventDTO, live: Pick<LiveMatchDTO, 'plan'>): s
       return 'Clock corrected'
     case 'note':
       return 'Note'
+    case 'disqualification':
+      return e.blueCard ? 'Red and blue card' : 'Red card'
     default:
       return PLAY_LABELS[e.type] ?? e.type
   }
@@ -44,6 +46,10 @@ export function eventTone(e: LiveEventDTO): Tone {
   if (e.type === 'shot') return e.outcome === 'goal' ? 'goal' : 'miss'
   if (e.type === 'substitution') return 'sub'
   if (e.type === 'note') return 'note'
+  if (e.type === 'warning') return 'warning'
+  if (e.type === 'suspension') return 'suspension'
+  if (e.type === 'disqualification') return 'red'
+  if (e.type === 'timeout') return 'timeout'
   if (e.type === 'period_start' || e.type === 'period_end' || e.type === 'clock_adjust') return 'system'
   return 'play'
 }
@@ -58,6 +64,7 @@ export function eventDetail(e: LiveEventDTO): string {
     if (e.goalkeeper) parts.push(`GK #${e.goalkeeper.jerseyNumber}`)
   }
   if (e.type === 'substitution' && e.inPlayer) parts.push(`on #${e.inPlayer.jerseyNumber} ${e.inPlayer.name}`)
-  if ((e.type === 'note' || e.type === 'clock_adjust') && e.text) parts.push(e.text)
+  if (e.blueCard) parts.push('written report required')
+  if (e.text && e.type !== 'shot' && e.type !== 'substitution') parts.push(e.text)
   return parts.join(' - ')
 }

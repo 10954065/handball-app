@@ -1,3 +1,6 @@
 export { recordEvent, editEvent, voidEvent } from './events'
 export { clockAction, endPeriod, finishMatch, getLive, recoverClock, setClock, startPeriod } from './flow'
 export { runningClocks, stopAllClocks, tickClocks } from './clock'
+export { recordSanction } from './sanctions'
+export { endTimeout, startTimeout } from './timeouts'
+export { tickTimeouts } from './timeout-clock'

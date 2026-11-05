@@ -41,10 +41,10 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 | `match_team_officials` | Team officials A-D on the match sheet. |
 | `match_clock` | Persisted clock state: phase, period, base ms, run start (wall and monotonic), owning process id, checkpoint. |
 | `match_periods` | Period records: kind, start/end, score at end. |
-| `match_events` | The ledger (shots, sanctions, time-outs, substitutions, period markers). |
+| `match_events` | The ledger (shots, sanctions, time-outs, substitutions, period markers). `caused_by_event_id` links an automatic disqualification to its suspension. |
 | `suspensions` | One row per suspension/disqualification reduction (mirrors the ledger, for reporting). |
 | `substitutions` | Substitution history (mirrors the ledger). |
-| `timeouts` | Team time-outs with wall-clock start/end. |
+| `timeouts` | Team time-outs: wall-clock start and end, monotonic start and owning process id. |
 | `standings` | Derived standings cache per season and group. |
 | `player_statistics` | Derived per-match player statistics cache. |
 | `team_statistics` | Derived per-match team statistics cache. |

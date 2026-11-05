@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { Field } from '@/components/ui/field'
 import { Input } from '@/components/ui/input'
+import { Switch } from '@/components/ui/switch'
+import { Segmented } from '@/components/ui/table'
 import { fmtTime } from '@/lib/format'
 import { parseMatchTime } from '@/lib/live'
 
@@ -169,6 +171,53 @@ export function VoidDialog({ title, summary, busy, onSubmit, onClose }: VoidProp
         <p className="rounded-md bg-surface-2 px-3 py-2 text-sm font-medium">{summary}</p>
         <Field label="Reason" htmlFor="void-reason" required>
           <Input id="void-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
+        </Field>
+      </div>
+    </Dialog>
+  )
+}
+
+type SanctionKind = 'warning' | 'suspension' | 'disqualification'
+
+interface SanctionProps {
+  title: string
+  description: string
+  /** Offered choices; a red card for a player has only one. */
+  kinds: SanctionKind[]
+  busy: boolean
+  onSubmit: (kind: SanctionKind, blueCard: boolean, reason: string | undefined) => void
+  onClose: () => void
+}
+
+const KIND_LABEL: Record<SanctionKind, string> = { warning: 'Warning', suspension: '2 minutes', disqualification: 'Red card' }
+
+/** Red cards and sanctions for team officials: heavier decisions that deserve a second look. */
+export function SanctionDialog({ title, description, kinds, busy, onSubmit, onClose }: SanctionProps) {
+  const [kind, setKind] = useState<SanctionKind>(kinds[0])
+  const [blueCard, setBlueCard] = useState(false)
+  const [reason, setReason] = useState('')
+  const red = kind === 'disqualification'
+  return (
+    <Dialog
+      open
+      onOpenChange={(o) => !o && onClose()}
+      title={title}
+      description={description}
+      size="sm"
+      footer={
+        <>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant={red ? 'danger' : 'primary'} loading={busy} onClick={() => onSubmit(kind, red && blueCard, reason.trim() || undefined)}>
+            Record {KIND_LABEL[kind].toLowerCase()}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        {kinds.length > 1 && <Segmented value={kind} onChange={setKind} options={kinds.map((k) => ({ value: k, label: KIND_LABEL[k] }))} />}
+        {red && <Switch label="Blue card" description="A written report to the disciplinary body is required." checked={blueCard} onCheckedChange={setBlueCard} />}
+        <Field label="Reason (optional)" htmlFor="sanction-reason">
+          <Input id="sanction-reason" value={reason} onChange={(e) => setReason(e.target.value)} />
         </Field>
       </div>
     </Dialog>

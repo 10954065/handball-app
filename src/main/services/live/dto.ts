@@ -1,18 +1,18 @@
 import { inArray } from 'drizzle-orm'
 import type { Side } from '@shared/domain/constants'
+import type { ReductionTimer } from '@shared/domain/types'
 import { nextPeriod } from '@shared/domain/flow'
 import { activeEvents, allowedOnCourt, compareEvents, type DerivedMatchState } from '@shared/domain/ledger'
-import { PLAY_KINDS } from '@shared/domain/live'
+import { EDITABLE_EVENTS, VOIDABLE_EVENTS } from '@shared/domain/live'
 import { getPeriod } from '@shared/domain/periods'
 import { liveTallies } from '@shared/domain/tally'
-import type { LiveEventDTO, LiveEventPlayer, LiveMatchDTO, LiveSideDTO } from '@shared/dto'
+import { checkTimeout } from '@shared/domain/timeouts'
+import type { LiveEventDTO, LiveEventPlayer, LiveMatchDTO, LiveReductionDTO, LiveSideDTO } from '@shared/dto'
 import { users } from '../../db/schema'
 import { type Ctx, nowOf } from '../ctx'
 import { clockView } from './clock'
-import { currentShootout, type LiveData, scoreOf, stateNow } from './state'
-
-const EDITABLE = new Set<string>(['shot', ...PLAY_KINDS])
-const CORRECTABLE = new Set<string>([...EDITABLE, 'substitution', 'note'])
+import { currentShootout, type LiveData, scoreOf, stateNow, takenTimeouts } from './state'
+import { timeoutView } from './timeout-clock'
 
 /** Whether the signed-in user may correct events of this match (finished matches need correct_finalized). */
 export function canCorrect(ctx: Ctx, d: LiveData): boolean {
@@ -35,6 +35,8 @@ function side(d: LiveData, s: Side, state: DerivedMatchState, tallies: ReturnTyp
         isGoalkeeper: r.isGoalkeeper,
         isCaptain: r.isCaptain,
         status: state.courtStatus.get(r.id) ?? 'bench',
+        warnings: state.warnings.get(r.id) ?? 0,
+        suspensions: state.suspensions.get(r.id) ?? 0,
         goals: t?.goals ?? 0,
         shots: t?.shots ?? 0,
         assists: t?.assists ?? 0,
@@ -52,11 +54,41 @@ function side(d: LiveData, s: Side, state: DerivedMatchState, tallies: ReturnTyp
     score: state[s].score,
     shootoutScore: state[s].shootoutScore,
     players,
-    officials: d.officials.filter((o) => o.side === s).map((o) => ({ id: o.id, slot: o.slot, name: o.name, role: o.role })),
+    officials: d.officials
+      .filter((o) => o.side === s)
+      .map((o) => ({
+        id: o.id,
+        slot: o.slot,
+        name: o.name,
+        role: o.role,
+        warnings: state.officialWarnings.get(o.id) ?? 0,
+        suspensions: state.officialSuspensions.get(o.id) ?? 0,
+        suspended: state[s].reductions.some((t) => t.teamOfficialId === o.id && t.kind === 'suspension'),
+        disqualified: state.officialDisqualified.has(o.id)
+      })),
     onCourt: players.filter((p) => p.status === 'court').length,
     allowedOnCourt: allowedOnCourt(state, s, d.row.rules.roster.onCourt),
-    stats: tallies.teams[s]
+    stats: tallies.teams[s],
+    reductions: d.row.status === 'live' ? state[s].reductions.map((t) => reduction(d, t)) : [],
+    timeouts: timeoutStatus(d, s)
   }
+}
+
+function reduction(d: LiveData, t: ReductionTimer): LiveReductionDTO {
+  const player = d.roster.find((r) => r.id === t.rosterId)
+  const official = d.officials.find((o) => o.id === t.teamOfficialId)
+  const label = player ? `#${player.jersey} ${player.name}` : official ? `Official ${official.slot}` : 'Team'
+  return { eventId: t.eventId, kind: t.kind, label, rosterId: t.rosterId, teamOfficialId: t.teamOfficialId, startMs: t.startMs, endMs: t.endMs }
+}
+
+function timeoutStatus(d: LiveData, s: Side): LiveSideDTO['timeouts'] {
+  const taken = takenTimeouts(d, s)
+  const used = taken.filter((t) => t.periodSeq <= 2).length
+  const remaining = Math.max(0, d.row.rules.timeouts.perMatch - used)
+  if (d.row.status !== 'live' || d.clock.phase !== 'in_period' || !d.period) return { used, remaining, allowed: false, reason: 'No period is in progress.' }
+  if (d.clock.timeoutId) return { used, remaining, allowed: false, reason: 'A team time-out is in progress.' }
+  const check = checkTimeout(taken, d.period, d.elapsedMs, d.row.rules)
+  return { used, remaining, allowed: check.allowed, reason: check.reason }
 }
 
 function events(ctx: Ctx, d: LiveData, correctable: boolean): LiveEventDTO[] {
@@ -78,6 +110,10 @@ function events(ctx: Ctx, d: LiveData, correctable: boolean): LiveEventDTO[] {
     }
   }
   const rowById = new Map(d.rows.map((r) => [r.id, r]))
+  const officialOf = (id: string | null) => {
+    const o = id ? d.officials.find((x) => x.id === id) : undefined
+    return o ? { slot: o.slot, name: o.name } : null
+  }
   return [...d.events]
     .sort(compareEvents)
     .reverse()
@@ -98,6 +134,9 @@ function events(ctx: Ctx, d: LiveData, correctable: boolean): LiveEventDTO[] {
         assist: who(e.assistRosterId),
         goalkeeper: who(e.goalkeeperRosterId),
         inPlayer: who(e.inRosterId),
+        official: officialOf(e.teamOfficialId),
+        blueCard: e.blueCard,
+        automatic: !!e.causedByEventId,
         text: e.reason,
         status: e.status,
         voidReason: r.voidReason,
@@ -105,8 +144,8 @@ function events(ctx: Ctx, d: LiveData, correctable: boolean): LiveEventDTO[] {
         recordedBy: r.recordedBy ? (names.get(r.recordedBy) ?? null) : null,
         wallTime: r.wallTime,
         scoreAfter: scoreAfter.get(e.id) ?? null,
-        correctable: correctable && e.status === 'active' && CORRECTABLE.has(e.type),
-        editable: correctable && e.status === 'active' && EDITABLE.has(e.type)
+        correctable: correctable && e.status === 'active' && VOIDABLE_EVENTS.has(e.type) && !e.causedByEventId,
+        editable: correctable && e.status === 'active' && EDITABLE_EVENTS.has(e.type)
       }
     })
 }
@@ -137,6 +176,7 @@ export function buildLiveDTO(ctx: Ctx, d: LiveData): LiveMatchDTO {
     events: events(ctx, d, canCorrect(ctx, d)),
     periodScores,
     shootout: currentShootout(d),
+    timeout: timeoutView(ctx, d.row.id),
     canFinish: d.row.status === 'live' && d.clock.phase === 'break' && next === null,
     breakStartedWall: d.clock.phase === 'break' && lastEnd ? (d.rows.find((r) => r.id === lastEnd.id)?.wallTime ?? null) : null,
     serverWall: nowOf(ctx)

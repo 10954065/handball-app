@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type { LiveClockDTO, LiveMatchDTO } from '@shared/dto'
+import type { LiveClockDTO, LiveMatchDTO, LiveTimeoutDTO } from '@shared/dto'
 import type { PeriodDef } from '@shared/domain/periods'
 import { subscribe } from './api'
 import { useApi } from './query'
@@ -55,6 +55,20 @@ export function useDisplayClock(clock: LiveClockDTO | undefined, period: PeriodD
   return period && period.kind !== 'shootout' ? Math.min(ms, period.endMs) : ms
 }
 
+/** Milliseconds left in a team time-out, counted from the main-process snapshot. */
+export function useTimeoutRemaining(timeout: LiveTimeoutDTO | null | undefined): number {
+  const receivedAt = useMemo(() => performance.now(), [timeout])
+  const [, repaint] = useReducer((n: number) => n + 1, 0)
+  const active = !!timeout
+  useEffect(() => {
+    if (!active) return
+    const id = setInterval(repaint, PAINT_MS)
+    return () => clearInterval(id)
+  }, [active])
+  if (!timeout) return 0
+  return Math.max(0, timeout.durationMs - timeout.elapsedMs - (performance.now() - receivedAt))
+}
+
 let audio: AudioContext | null = null
 
 /** Short horn generated in-app (no sound files, works offline). */
@@ -75,6 +89,29 @@ export function playHorn(volume: number): void {
       osc.connect(gain)
       osc.start(t)
       osc.stop(t + 1.35)
+    }
+  } catch {
+    // Audio is a courtesy; the visual signal is authoritative.
+  }
+}
+
+/** Two short tones: a timer has expired or a time-out is about to end. */
+export function playBeep(volume: number): void {
+  try {
+    audio ??= new AudioContext()
+    const level = Math.max(0.05, Math.min(1, volume)) * 0.5
+    for (const at of [0, 0.28]) {
+      const t = audio.currentTime + at
+      const gain = audio.createGain()
+      gain.gain.setValueAtTime(0, t)
+      gain.gain.linearRampToValueAtTime(level, t + 0.02)
+      gain.gain.linearRampToValueAtTime(0, t + 0.2)
+      gain.connect(audio.destination)
+      const osc = audio.createOscillator()
+      osc.frequency.value = 880
+      osc.connect(gain)
+      osc.start(t)
+      osc.stop(t + 0.22)
     }
   } catch {
     // Audio is a courtesy; the visual signal is authoritative.

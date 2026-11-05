@@ -11,6 +11,7 @@ import type {
   DashboardDTO,
   IntegrityDTO,
   LiveMatchDTO,
+  LiveSanctionResultDTO,
   MatchDetailDTO,
   MatchSetupDTO,
   MatchSummaryDTO,
@@ -59,7 +60,9 @@ import {
   matchRef,
   recordEventSchema,
   recoverClockSchema,
+  sanctionSchema,
   setClockSchema,
+  startTimeoutSchema,
   voidEventSchema
 } from '../schemas/live'
 
@@ -170,6 +173,9 @@ export const contract = {
   'live.record': channel<LiveMatchDTO>()('operate_match', recordEventSchema),
   'live.edit': channel<LiveMatchDTO>()('operate_match', editEventSchema),
   'live.void': channel<LiveMatchDTO>()('operate_match', voidEventSchema),
+  'live.sanction': channel<LiveSanctionResultDTO>()('operate_match', sanctionSchema),
+  'live.timeoutStart': channel<LiveMatchDTO>()('operate_match', startTimeoutSchema),
+  'live.timeoutEnd': channel<LiveMatchDTO>()('operate_match', matchRef),
   'live.openScoreboard': channel<void>()('authenticated', matchRef),
 
   // demonstration mode

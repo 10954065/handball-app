@@ -1,15 +1,26 @@
 import { toast } from 'sonner'
+import type { Side } from '@shared/domain/constants'
 import type { EventDraft } from '@shared/domain/live'
-import type { LiveMatchDTO } from '@shared/dto'
+import type { LiveEventDTO, LiveMatchDTO } from '@shared/dto'
+import type { ChannelInput } from '@shared/ipc/contract'
 import { useConfirm } from '@/components/ui/confirm'
 import { ApiError, errorMessage } from '@/lib/api'
 import { useSetLive } from '@/lib/live'
 import { useApiMutation } from '@/lib/query'
+import { eventTitle } from './labels'
+import type { NoticeInput } from './notices'
 
 const NO_TOAST = { toastError: false } as const
 
+export type SanctionInput = Omit<ChannelInput<'live.sanction'>, 'matchId' | 'clientRequestId' | 'acknowledged'>
+
+export function eventSummary(e: LiveEventDTO, live: LiveMatchDTO): string {
+  const who = e.player ? ` - #${e.player.jerseyNumber} ${e.player.name}` : e.official ? ` - Official ${e.official.slot} ${e.official.name}` : ''
+  return `${eventTitle(e, live)}${who}${e.side ? ` (${live[e.side].code})` : ''}`
+}
+
 /** All operator actions of the match centre, with confirmations where the rules or settings ask for them. */
-export function useLiveActions(matchId: string, confirmCritical: boolean) {
+export function useLiveActions(matchId: string, confirmCritical: boolean, notify: (n: NoticeInput) => void) {
   const setLive = useSetLive(matchId)
   const confirm = useConfirm()
   const opts = { ...NO_TOAST, onSuccess: setLive }
@@ -23,18 +34,23 @@ export function useLiveActions(matchId: string, confirmCritical: boolean) {
     finish: useApiMutation('live.finish', opts),
     edit: useApiMutation('live.edit', opts),
     void: useApiMutation('live.void', opts),
+    sanction: useApiMutation('live.sanction', { ...NO_TOAST, onSuccess: (d) => setLive(d.live) }),
+    timeoutStart: useApiMutation('live.timeoutStart', opts),
+    timeoutEnd: useApiMutation('live.timeoutEnd', opts),
     scoreboard: useApiMutation('live.openScoreboard', NO_TOAST)
   }
   const busy = Object.values(m).some((x) => x.isPending)
-  const fail = (err: unknown) => toast.error(errorMessage(err))
+  const fail = (err: unknown) => notify({ tone: 'error', text: errorMessage(err) })
+  /** A message over an open dialog: the notice area is behind it, and no tile can be covered. */
+  const failInDialog = (err: unknown) => toast.error(errorMessage(err))
 
   /** Run a call; if the main process asks for confirmation, ask the operator and retry with force. */
-  async function withForce(run: (force: boolean) => Promise<LiveMatchDTO>) {
+  async function withForce(run: (force: boolean) => Promise<unknown>, confirmLabel = 'Yes, continue') {
     try {
       await run(false)
     } catch (err) {
       if (err instanceof ApiError && err.code === 'NEEDS_CONFIRMATION') {
-        const ok = await confirm({ title: err.message, items: err.details, confirmLabel: 'Yes, continue', tone: 'danger' })
+        const ok = await confirm({ title: err.message, items: err.details, confirmLabel, tone: 'danger' })
         if (ok) await run(true).catch(fail)
       } else fail(err)
     }
@@ -72,7 +88,20 @@ export function useLiveActions(matchId: string, confirmCritical: boolean) {
     },
     edit: (eventId: string, event: EventDraft, matchMs: number | undefined, reason: string) => m.edit.mutateAsync({ matchId, eventId, event, matchMs, reason }),
     voidEvent: (eventId: string, reason: string) => m.void.mutateAsync({ matchId, eventId, reason }),
+    /** The referees decide: a rule conflict is shown once, then the decision is recorded. */
+    sanction: async (input: SanctionInput) => {
+      const clientRequestId = crypto.randomUUID()
+      await withForce(async (acknowledged) => {
+        const { live, notes } = await m.sanction.mutateAsync({ ...input, matchId, clientRequestId, acknowledged })
+        const e = live.events.find((x) => x.type === input.kind) ?? live.events[0]
+        notify({ tone: 'success', text: eventSummary(e, live) })
+        for (const note of notes) notify({ tone: 'info', text: note })
+      }, 'Record the decision')
+    },
+    timeoutStart: (side: Side) => m.timeoutStart.mutateAsync({ matchId, clientRequestId: crypto.randomUUID(), side }).catch(fail),
+    timeoutEnd: () => m.timeoutEnd.mutateAsync({ matchId }).catch(fail),
     openScoreboard: () => m.scoreboard.mutateAsync({ matchId }).catch(fail),
-    fail
+    fail,
+    failInDialog
   }
 }

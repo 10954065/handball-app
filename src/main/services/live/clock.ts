@@ -84,6 +84,7 @@ export function startClock(ctx: Ctx, row: ClockRow, period: PeriodDef): void {
 export function stopClock(ctx: Ctx, row: ClockRow, period: PeriodDef | null): number {
   const ms = clockElapsed(ctx, row, period)
   writeClock(ctx, row.matchId, stopped(ms, nowOf(ctx)))
+  syncSuspensions(ctx, row.matchId, ms)
   return ms
 }
 
@@ -93,6 +94,19 @@ export function setClockTo(ctx: Ctx, row: ClockRow, ms: number): void {
   if (owned(ctx, row)) {
     writeClock(ctx, row.matchId, { baseMs: ms, runStartedMono: monoOf(ctx), runStartedWall: at, checkpointMs: ms, checkpointWall: at })
   } else writeClock(ctx, row.matchId, stopped(ms, at))
+}
+
+/**
+ * Bring the suspensions mirror in line with the match clock. The ledger stays authoritative;
+ * this keeps the table's status right, including after the clock is corrected backwards.
+ * Returns true when a suspension expired.
+ */
+export function syncSuspensions(ctx: Ctx, matchId: string, ms: number): boolean {
+  const expired = ctx.sqlite
+    .prepare("UPDATE suspensions SET status = 'completed', completed_at = ? WHERE match_id = ? AND status = 'active' AND end_ms <= ?")
+    .run(nowOf(ctx), matchId, ms)
+  ctx.sqlite.prepare("UPDATE suspensions SET status = 'active', completed_at = NULL WHERE match_id = ? AND status = 'completed' AND end_ms > ?").run(matchId, ms)
+  return expired.changes > 0
 }
 
 function runningRows(ctx: Ctx) {
@@ -115,6 +129,7 @@ export function tickClocks(ctx: Ctx): string[] {
   for (const { row, rules } of runningRows(ctx)) {
     const period = getPeriod(buildPeriodPlan(rules), row.periodSeq) ?? null
     const ms = clockElapsed(ctx, row, period)
+    if (syncSuspensions(ctx, row.matchId, ms)) changed.push(row.matchId)
     if (period && ms >= period.endMs) {
       ctx.sqlite.transaction(() => {
         writeClock(ctx, row.matchId, stopped(period.endMs, at))
@@ -125,7 +140,7 @@ export function tickClocks(ctx: Ctx): string[] {
       writeClock(ctx, row.matchId, { checkpointMs: ms, checkpointWall: at })
     }
   }
-  return changed
+  return [...new Set(changed)]
 }
 
 /** Matches with a clock running in this process. */

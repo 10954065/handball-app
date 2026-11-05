@@ -98,7 +98,7 @@ export function deriveMatchState(
           inc(state.officialSuspensions, e.teamOfficialId)
           sequence = state.officialSuspensions.get(e.teamOfficialId) ?? 0
         }
-        if (e.side) {
+        if (e.side && e.teamReduction) {
           state.timers.push({
             eventId: e.id,
             side: e.side,

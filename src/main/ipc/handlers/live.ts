@@ -1,4 +1,18 @@
-import { clockAction, editEvent, endPeriod, finishMatch, getLive, recordEvent, recoverClock, setClock, startPeriod, voidEvent } from '../../services/live'
+import {
+  clockAction,
+  editEvent,
+  endPeriod,
+  endTimeout,
+  finishMatch,
+  getLive,
+  recordEvent,
+  recordSanction,
+  recoverClock,
+  setClock,
+  startPeriod,
+  startTimeout,
+  voidEvent
+} from '../../services/live'
 import type { HandlerMap, RequestContext } from '../types'
 
 /** Run a live mutation and notify every window (operator screen, public scoreboard). */
@@ -20,5 +34,8 @@ export const liveHandlers = {
   'live.finish': notify(finishMatch),
   'live.record': notify(recordEvent),
   'live.edit': notify(editEvent),
-  'live.void': notify(voidEvent)
+  'live.void': notify(voidEvent),
+  'live.sanction': notify(recordSanction),
+  'live.timeoutStart': notify(startTimeout),
+  'live.timeoutEnd': notify((ctx, i) => endTimeout(ctx, i.matchId))
 } satisfies Partial<HandlerMap>

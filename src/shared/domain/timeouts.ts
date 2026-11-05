@@ -1,6 +1,9 @@
 import type { PeriodDef } from './periods'
 import type { RulesConfig } from './rules'
 
+/** Seconds before the end of a time-out at which the warning signal sounds. VERIFY against IHF 2:10. */
+export const TIMEOUT_WARNING_SECONDS = 10
+
 export interface TimeoutRecord {
   periodSeq: number
   matchMs: number
