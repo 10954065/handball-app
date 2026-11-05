@@ -57,9 +57,9 @@ function timedOut(): { promise: Promise<never>; cancel: () => void } {
   return { promise, cancel: () => clearTimeout(timer) }
 }
 
-/** Render a match report in a hidden window, use it, and always close the window. */
-async function withReportWindow<T>(matchId: string, use: (win: BrowserWindow) => Promise<T>): Promise<T> {
-  const win = createReportWindow(matchId)
+/** Render a report route in a hidden window, use it, and always close the window. */
+async function withReportWindow<T>(route: string, use: (win: BrowserWindow) => Promise<T>): Promise<T> {
+  const win = createReportWindow(route)
   const lost = windowLost(win)
   const limit = timedOut()
   try {
@@ -79,9 +79,12 @@ function footerTemplate(label: string): string {
   return `<div style="width:100%;padding:0 12mm;font:8px Arial,sans-serif;color:#555;display:flex;justify-content:space-between"><span>${escapeHtml(label)}</span><span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span></div>`
 }
 
-/** A4 PDF of a match report. */
-export function renderReportPdf(matchId: string, footerLabel: string): Promise<Buffer> {
-  return withReportWindow(matchId, (win) =>
+export const matchReportRoute = (matchId: string) => `/print/report/${matchId}`
+export const seasonReportRoute = (seasonId: string) => `/print/season/${seasonId}`
+
+/** A4 PDF of a report route. */
+export function renderReportPdf(route: string, footerLabel: string): Promise<Buffer> {
+  return withReportWindow(route, (win) =>
     win.webContents.printToPDF({
       pageSize: 'A4',
       printBackground: true,
@@ -93,10 +96,10 @@ export function renderReportPdf(matchId: string, footerLabel: string): Promise<B
   )
 }
 
-/** Open the system print dialog for a match report. A cancelled dialog is not an error. */
-export function printReport(matchId: string): Promise<{ printed: boolean }> {
+/** Open the system print dialog for a report route. A cancelled dialog is not an error. */
+export function printReport(route: string): Promise<{ printed: boolean }> {
   return withReportWindow(
-    matchId,
+    route,
     (win) =>
       new Promise((resolve, reject) => {
         win.webContents.print({ printBackground: true, pageSize: 'A4' }, (printed, reason) => {

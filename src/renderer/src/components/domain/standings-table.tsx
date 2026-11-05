@@ -28,7 +28,10 @@ export function StandingsTable({ rows, compact }: { rows: StandingRowDTO[]; comp
                 .filter((r) => r.groupName === g)
                 .map((r) => (
                   <tr key={r.teamId} className="border-t border-border/60">
-                    <td className={cn('px-3 py-2 font-display text-base font-semibold tabular', r.rank === 1 && 'text-gold')}>{r.rank}</td>
+                    <td className={cn('px-3 py-2 font-display text-base font-semibold tabular', r.rank === 1 && 'text-gold')} title={r.unresolvedTie ? 'Level on every criterion. The order shown is alphabetical.' : undefined}>
+                      {r.rank}
+                      {r.unresolvedTie && '='}
+                    </td>
                     <td className="py-2">
                       <div className="flex items-center gap-2.5">
                         <TeamCrest logoMediaId={r.logoMediaId} code={r.code} color={r.primaryColor} size={24} />
@@ -48,6 +51,7 @@ export function StandingsTable({ rows, compact }: { rows: StandingRowDTO[]; comp
           </table>
         </div>
       ))}
+      {rows.some((r) => r.unresolvedTie) && <p className="px-4 pb-3 text-xs text-warning">= Level on every criterion. The order shown is alphabetical: settle it under the regulations.</p>}
     </div>
   )
 }

@@ -12,6 +12,17 @@ const r = (h: string, a: string, hs: number, as: number): ResultInput => ({
 const teams = ['A', 'B', 'C', 'D'].map((id) => ({ teamId: id, groupName: null, name: `Team ${id}` }))
 
 describe('standings', () => {
+  it('flags teams level on every criterion, because only the alphabet separates them', () => {
+    const rows = computeStandings(teams, [r('A', 'B', 25, 25), r('C', 'D', 30, 20)], cfg)
+    const by = Object.fromEntries(rows.map((x) => [x.teamId, x]))
+    expect([by.A.unresolvedTie, by.B.unresolvedTie]).toEqual([true, true])
+    expect([by.C.unresolvedTie, by.D.unresolvedTie]).toEqual([false, false])
+  })
+
+  it('does not flag teams that simply have not played yet', () => {
+    expect(computeStandings(teams, [], cfg).some((x) => x.unresolvedTie)).toBe(false)
+  })
+
   it('applies the configured points system', () => {
     const rows = computeStandings(teams, [r('A', 'B', 30, 25), r('C', 'D', 28, 28)], cfg)
     const by = Object.fromEntries(rows.map((x) => [x.teamId, x]))

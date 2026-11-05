@@ -4,7 +4,7 @@ import { DEFAULT_RULES, findPreset } from '@shared/domain/rules'
 import type { MatchDetailDTO, MatchSummaryDTO } from '@shared/dto'
 import { AppError } from '@shared/errors'
 import type { matchInputSchema, matchListQuery, matchUpdateSchema } from '@shared/schemas/entities'
-import { competitions, matchEvents, matchLineups, matchOfficials, matches, officials, seasons, teams, venues } from '../db/schema'
+import { competitions, matchEvents, matchLineups, matchOfficials, matches, officials, seasons, seasonTeams, teams, venues } from '../db/schema'
 import { audit } from './audit'
 import { type Ctx, notFound, nowOf, tx, uuid } from './ctx'
 import { getSettings } from './settings'
@@ -111,6 +111,15 @@ function writeOfficials(ctx: Ctx, matchId: string, list: { officialId: string; r
   }
 }
 
+const TABLE_STAGES = new Set(['league', 'group'])
+
+/** The table counts matches between registered teams, so anything else would quietly be left out of it. */
+function assertRegistered(ctx: Ctx, seasonId: string | null | undefined, stage: string, teamIds: [string, string]): void {
+  if (!seasonId || !TABLE_STAGES.has(stage)) return
+  const found = ctx.db.select({ id: seasonTeams.teamId }).from(seasonTeams).where(and(eq(seasonTeams.seasonId, seasonId), inArray(seasonTeams.teamId, teamIds))).all()
+  if (found.length < 2) throw new AppError('VALIDATION', 'Both teams must be registered in the season before a league or group match. Add them under Manage teams.')
+}
+
 /** Create a match. Rules and team names/colours are snapshotted so later edits never alter it. */
 export function createMatch(ctx: Ctx, input: z.output<typeof matchInputSchema>): MatchDetailDTO {
   const h = ctx.db.select().from(teams).where(eq(teams.id, input.homeTeamId)).get() ?? notFound('Home team')
@@ -123,6 +132,8 @@ export function createMatch(ctx: Ctx, input: z.output<typeof matchInputSchema>):
     const s = ctx.db.select().from(seasons).where(eq(seasons.id, input.seasonId)).get() ?? notFound('Season')
     if (!comp || s.competitionId !== comp.id) throw new AppError('VALIDATION', 'The season does not belong to the selected competition.')
   }
+  const stage = comp?.type === 'friendly' ? 'friendly' : input.stage
+  assertRegistered(ctx, input.seasonId, stage, [h.id, a.id])
   const rules = input.rules ?? comp?.rules ?? findPreset(getSettings(ctx).defaultRulesPresetId) ?? DEFAULT_RULES
   const awayColor = a.primaryColor.toLowerCase() === h.primaryColor.toLowerCase() ? a.secondaryColor : a.primaryColor
   const id = uuid()
@@ -138,7 +149,7 @@ export function createMatch(ctx: Ctx, input: z.output<typeof matchInputSchema>):
         awayTeamId: a.id,
         venueId: input.venueId ?? null,
         scheduledAt: input.scheduledAt,
-        stage: comp?.type === 'friendly' ? 'friendly' : input.stage,
+        stage,
         round: input.round ?? null,
         groupName: input.groupName ?? null,
         rules,
@@ -162,6 +173,7 @@ const EDITABLE = new Set(['scheduled', 'ready'])
 export function updateMatch(ctx: Ctx, input: z.output<typeof matchUpdateSchema>): MatchDetailDTO {
   const before = getMatch(ctx, input.id)
   if (!EDITABLE.has(before.status)) throw new AppError('CONFLICT', 'Only matches that have not started can be edited here.')
+  assertRegistered(ctx, before.seasonId, input.stage ?? before.stage, [before.home.teamId, before.away.teamId])
   const { id, officials: offs, ...values } = input
   tx(ctx, () => {
     ctx.db.update(matches).set({ ...values, updatedAt: nowOf(ctx) }).where(eq(matches.id, id)).run()

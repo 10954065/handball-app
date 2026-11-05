@@ -73,10 +73,10 @@ export function loadScoreboard(win: BrowserWindow, matchId: string): void {
   loadRoute(win, `/scoreboard/${matchId}`)
 }
 
-/** Never shown: a match report rendered at A4 width for PDF export and printing. */
-export function createReportWindow(matchId: string): BrowserWindow {
+/** Never shown: a report rendered at A4 width for PDF export and printing. */
+export function createReportWindow(route: string): BrowserWindow {
   const win = new BrowserWindow({ width: 794, height: 1123, show: false, title: 'HMMS report', webPreferences: secureWebPreferences() })
-  loadRoute(win, `/print/report/${matchId}`)
+  loadRoute(win, route)
   return win
 }
 

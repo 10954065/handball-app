@@ -1,9 +1,9 @@
-import { and, asc, count, desc, eq, or } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, or } from 'drizzle-orm'
 import type { z } from 'zod'
 import type { CompetitionDTO, SeasonDTO } from '@shared/dto'
 import { AppError } from '@shared/errors'
 import type { competitionInputSchema, competitionUpdateSchema, seasonInputSchema, seasonTeamsSchema, seasonUpdateSchema } from '@shared/schemas/entities'
-import { competitions, matches, seasons, seasonTeams, teams } from '../db/schema'
+import { competitions, knockoutTies, matches, seasons, seasonTeams, teams } from '../db/schema'
 import { audit } from './audit'
 import { type Ctx, notFound, nowOf, tx, uuid } from './ctx'
 
@@ -108,24 +108,43 @@ export function updateSeason(ctx: Ctx, input: z.output<typeof seasonUpdateSchema
   return getSeason(ctx, id)
 }
 
-/** Replace the teams registered in a season. Teams that already have matches in it cannot be removed. */
+const hasMatches = (ctx: Ctx, seasonId: string, teamId: string, stages?: ('league' | 'group')[]) =>
+  !!ctx.db
+    .select({ id: matches.id })
+    .from(matches)
+    .where(and(eq(matches.seasonId, seasonId), or(eq(matches.homeTeamId, teamId), eq(matches.awayTeamId, teamId)), stages ? inArray(matches.stage, stages) : undefined))
+    .limit(1)
+    .get()
+
+const inBracket = (ctx: Ctx, seasonId: string, teamId: string) =>
+  !!ctx.db
+    .select({ id: knockoutTies.id })
+    .from(knockoutTies)
+    .where(and(eq(knockoutTies.seasonId, seasonId), or(eq(knockoutTies.homeTeamId, teamId), eq(knockoutTies.awayTeamId, teamId))))
+    .limit(1)
+    .get()
+
+/**
+ * Replace the teams registered in a season. A team with matches or a place in the bracket cannot be
+ * removed, and a team with league or group fixtures cannot change group: the table counts matches
+ * between teams of one group, so a move would quietly take played matches out of it.
+ */
 export function setSeasonTeams(ctx: Ctx, input: z.output<typeof seasonTeamsSchema>): SeasonDTO {
   const season = getSeason(ctx, input.seasonId)
-  const keep = new Set(input.teams.map((t) => t.teamId))
+  const next = new Map(input.teams.map((t) => [t.teamId, t.groupName || null]))
+  const seeds = new Map(ctx.db.select({ teamId: seasonTeams.teamId, seed: seasonTeams.seed }).from(seasonTeams).where(eq(seasonTeams.seasonId, input.seasonId)).all().map((t) => [t.teamId, t.seed]))
   tx(ctx, () => {
     for (const t of season.teams) {
-      if (keep.has(t.teamId)) continue
-      const n =
-        ctx.db
-          .select({ n: count() })
-          .from(matches)
-          .where(and(eq(matches.seasonId, input.seasonId), or(eq(matches.homeTeamId, t.teamId), eq(matches.awayTeamId, t.teamId))))
-          .get()?.n ?? 0
-      if (n > 0) throw new AppError('CONFLICT', `${t.teamName} already has matches in this season and cannot be removed.`)
+      if (!next.has(t.teamId)) {
+        if (hasMatches(ctx, input.seasonId, t.teamId)) throw new AppError('CONFLICT', `${t.teamName} already has matches in this season and cannot be removed.`)
+        if (inBracket(ctx, input.seasonId, t.teamId)) throw new AppError('CONFLICT', `${t.teamName} is in the bracket and cannot be removed.`)
+      } else if (next.get(t.teamId) !== (t.groupName || null) && hasMatches(ctx, input.seasonId, t.teamId, ['league', 'group'])) {
+        throw new AppError('CONFLICT', `${t.teamName} already has group fixtures, so its group cannot change.`)
+      }
     }
     ctx.db.delete(seasonTeams).where(eq(seasonTeams.seasonId, input.seasonId)).run()
     for (const t of input.teams) {
-      ctx.db.insert(seasonTeams).values({ id: uuid(), seasonId: input.seasonId, teamId: t.teamId, groupName: t.groupName || null }).run()
+      ctx.db.insert(seasonTeams).values({ id: uuid(), seasonId: input.seasonId, teamId: t.teamId, groupName: t.groupName || null, seed: seeds.get(t.teamId) ?? null }).run()
     }
     audit(ctx, { action: 'seasons.teams', entity: 'seasons', entityId: input.seasonId, before: season.teams, after: input.teams })
   })

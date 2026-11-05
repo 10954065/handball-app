@@ -5,10 +5,11 @@ import type { MatchReportDTO } from '@shared/dto'
 import { audit } from '../../services/audit'
 import { auditReportExport, findArchived, listReports, readReport, reportContentKey, storeReport } from '../../services/reports/archive'
 import { matchReport } from '../../services/reports/data'
-import { matchWorkbook, statisticsWorkbook } from '../../services/reports/workbook'
+import { seasonReport } from '../../services/reports/season'
+import { matchWorkbook, seasonWorkbook, statisticsWorkbook } from '../../services/reports/workbook'
 import { getSettings } from '../../services/settings'
 import { statisticsOverview } from '../../services/statistics'
-import { printReport, renderReportPdf } from '../../reportWindow'
+import { matchReportRoute, printReport, renderReportPdf, seasonReportRoute } from '../../reportWindow'
 import type { HandlerMap, RequestContext } from '../types'
 
 const FILTERS = {
@@ -29,8 +30,12 @@ async function saveTo(ctx: RequestContext, fileName: string, format: keyof typeo
 /** The running footer of a PDF. A page may travel alone, so each one carries the report's status. */
 function pageFooter(report: MatchReportDTO, author: string): string {
   const status = report.demo ? 'DEMONSTRATION DATA - ' : report.state === 'provisional' ? 'PROVISIONAL - ' : ''
-  return `${status}${report.match.matchNumber} - generated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC by ${author}`
+  return `${status}${report.match.matchNumber} - ${generatedBy(author)}`
 }
+
+const generatedBy = (author: string) => `generated ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC by ${author}`
+
+const safeName = (s: string) => s.replace(/[^\w.\- ]+/g, '_')
 
 export const reportHandlers = {
   'statistics.overview': (input, ctx) => statisticsOverview(ctx, input),
@@ -47,7 +52,7 @@ export const reportHandlers = {
     const report = matchReport(ctx, matchId)
     const archived = findArchived(ctx, matchId, format, reportContentKey(report))
     if (archived) return archived
-    const bytes = format === 'pdf' ? await renderReportPdf(matchId, pageFooter(report, ctx.user?.displayName ?? 'HMMS')) : await matchWorkbook(report)
+    const bytes = format === 'pdf' ? await renderReportPdf(matchReportRoute(matchId), pageFooter(report, ctx.user?.displayName ?? 'HMMS')) : await matchWorkbook(report)
     return storeReport(ctx, report, format, bytes)
   },
   'reports.saveAs': async ({ id }, ctx) => {
@@ -56,5 +61,17 @@ export const reportHandlers = {
     if (saved) auditReportExport(ctx, { id, matchId: file.matchId, fileName: file.fileName }, saved.path)
     return saved
   },
-  'reports.print': ({ matchId }) => printReport(matchId)
+  'reports.print': ({ matchId }) => printReport(matchReportRoute(matchId)),
+  'seasons.report': ({ seasonId }, ctx) => seasonReport(ctx, seasonId),
+  'seasons.saveReport': async ({ seasonId, format }, ctx) => {
+    const report = seasonReport(ctx, seasonId)
+    const title = `${report.competition.name} ${report.season.name}`
+    const name = safeName(`${report.demo ? 'DEMO - ' : ''}${title} report.${format}`)
+    const footer = `${report.demo ? 'DEMONSTRATION DATA - ' : ''}${title} - ${generatedBy(ctx.user?.displayName ?? 'HMMS')}`
+    const bytes = format === 'pdf' ? await renderReportPdf(seasonReportRoute(seasonId), footer) : await seasonWorkbook(report)
+    const saved = await saveTo(ctx, name, format, bytes)
+    if (saved) audit(ctx, { action: 'seasons.report.export', entity: 'seasons', entityId: seasonId, after: { format, path: saved.path } })
+    return saved
+  },
+  'seasons.printReport': ({ seasonId }) => printReport(seasonReportRoute(seasonId))
 } satisfies Partial<HandlerMap>

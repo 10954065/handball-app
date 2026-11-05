@@ -3,7 +3,7 @@ import { matchResult } from '@shared/domain/flow'
 import { formatCountdown, formatMatchTime, type PeriodDef } from '@shared/domain/periods'
 import type { LiveMatchDTO } from '@shared/dto'
 import { AppError } from '@shared/errors'
-import { matchClock, matches, matchPeriods } from '../../db/schema'
+import { knockoutTies, matchClock, matches, matchPeriods } from '../../db/schema'
 import { audit } from '../audit'
 import { syncMatchStatistics } from '../statistics'
 import { type Ctx, nowOf, requireUser, tx, uuid } from '../ctx'
@@ -136,6 +136,9 @@ export function recoverClock(ctx: Ctx, input: { matchId: string; resumeAtMs: num
   return getLive(ctx, input.matchId)
 }
 
+/** A tie of a bracket needs a winner: a level result could never be resolved afterwards. */
+const isBracketMatch = (ctx: Ctx, matchId: string) => !!ctx.db.select({ id: knockoutTies.id }).from(knockoutTies).where(eq(knockoutTies.matchId, matchId)).get()
+
 /** End the current period. Ending early, or a shoot-out that is not decided, needs confirmation. */
 export function endPeriod(ctx: Ctx, input: { matchId: string; force: boolean }): LiveMatchDTO {
   requireUser(ctx)
@@ -143,6 +146,9 @@ export function endPeriod(ctx: Ctx, input: { matchId: string; force: boolean }):
   const period = playingPeriod(ctx, d)
   if (clockView(ctx, d.clock, period).running) throw new AppError('CONFLICT', 'Stop the clock before ending the period.')
   if (d.clock.timeoutId) throw new AppError('CONFLICT', 'End the team time-out before ending the period.')
+  if (period.kind === 'shootout' && !currentShootout(d)?.decided && isBracketMatch(ctx, input.matchId)) {
+    throw new AppError('CONFLICT', 'A knockout match must have a winner. Continue the shoot-out until it is decided.')
+  }
   if (!input.force) {
     if (period.kind === 'shootout' && !currentShootout(d)?.decided) {
       throw new AppError('NEEDS_CONFIRMATION', 'The shoot-out has not been decided yet.', ['End the shoot-out anyway?'])
@@ -193,6 +199,7 @@ export function finishMatch(ctx: Ctx, input: { matchId: string; force: boolean }
     throw new AppError('CONFLICT', 'The match can be finished after the final period has ended.')
   }
   const values = resultValues(d)
+  if (values.winnerSide === 'draw' && isBracketMatch(ctx, input.matchId)) throw new AppError('CONFLICT', 'A knockout match must have a winner.')
   if (values.winnerSide === 'draw' && !d.row.rules.drawAllowed && !input.force) {
     throw new AppError('NEEDS_CONFIRMATION', 'These rules require a winner, but the match is level and no further period is configured.', [
       'Finish the match as a draw?'

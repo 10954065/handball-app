@@ -11,6 +11,7 @@ import { NotAvailablePage } from '@/pages/not-available'
 import { SettingsPage } from '@/pages/settings'
 import { CompetitionsPage } from '@/pages/competitions'
 import { CompetitionDetailPage } from '@/pages/competitions/detail'
+import { SeasonReportPage } from '@/pages/competitions/season-report'
 import { MatchesPage } from '@/pages/matches'
 import { MatchDetailPage } from '@/pages/matches/detail'
 import { LineupsPage } from '@/pages/lineups'
@@ -20,7 +21,7 @@ import { ScoreboardPage } from '@/pages/scoreboard'
 import { HistoryPage } from '@/pages/history'
 import { ReportsPage } from '@/pages/reports'
 import { ReportDetailPage } from '@/pages/reports/detail'
-import { ReportPrintPage } from '@/pages/reports/print'
+import { ReportPrintPage, SeasonPrintPage } from '@/pages/reports/print'
 import { StatisticsPage } from '@/pages/statistics'
 import { OfficialsPage } from '@/pages/officials'
 import { PlayersPage } from '@/pages/players'
@@ -46,7 +47,8 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
   '/officials': [{ path: 'officials', element: <OfficialsPage /> }],
   '/competitions': [
     { path: 'competitions', element: <CompetitionsPage /> },
-    { path: 'competitions/:id', element: <CompetitionDetailPage /> }
+    { path: 'competitions/:id', element: <CompetitionDetailPage /> },
+    { path: 'competitions/:id/seasons/:seasonId/report', element: <SeasonReportPage /> }
   ],
   '/statistics': [{ path: 'statistics', element: <StatisticsPage /> }],
   '/reports': [
@@ -64,6 +66,7 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
 const router = createHashRouter([
   { path: '/scoreboard/:id', element: <ScoreboardPage /> },
   { path: '/print/report/:id', element: <ReportPrintPage /> },
+  { path: '/print/season/:id', element: <SeasonPrintPage /> },
   {
     path: '/',
     element: <AuthGate />,

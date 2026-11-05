@@ -35,6 +35,8 @@ export interface StandingRow {
   goalsAgainst: number
   goalDifference: number
   points: number
+  /** Level with another team on every criterion: the order shown is only alphabetical. */
+  unresolvedTie: boolean
 }
 
 interface Acc {
@@ -97,9 +99,12 @@ function metric(key: string, id: string, overall: Map<string, Acc>, h2h: Map<str
 }
 
 /** Order a set of teams tied on everything before criterion index `from`. */
-function breakTie(ids: string[], from: number, overall: Map<string, Acc>, results: readonly ResultInput[], cfg: StandingsConfig, names: Map<string, string>): string[] {
+function breakTie(ids: string[], from: number, overall: Map<string, Acc>, results: readonly ResultInput[], cfg: StandingsConfig, names: Map<string, string>, unresolved: Set<string>): string[] {
   if (ids.length <= 1) return ids
-  if (from >= cfg.tiebreakers.length) return [...ids].sort((a, b) => (names.get(a) ?? a).localeCompare(names.get(b) ?? b))
+  if (from >= cfg.tiebreakers.length) {
+    for (const id of ids) unresolved.add(id)
+    return [...ids].sort((a, b) => (names.get(a) ?? a).localeCompare(names.get(b) ?? b))
+  }
   const set = new Set(ids)
   const h2h = tabulate(ids, results.filter((r) => set.has(r.homeTeamId) && set.has(r.awayTeamId)), cfg)
   const key = cfg.tiebreakers[from]
@@ -108,7 +113,7 @@ function breakTie(ids: string[], from: number, overall: Map<string, Acc>, result
     const v = metric(key, id, overall, h2h)
     buckets.set(v, [...(buckets.get(v) ?? []), id])
   }
-  return [...buckets.entries()].sort((a, b) => b[0] - a[0]).flatMap(([, group]) => breakTie(group, from + 1, overall, results, cfg, names))
+  return [...buckets.entries()].sort((a, b) => b[0] - a[0]).flatMap(([, group]) => breakTie(group, from + 1, overall, results, cfg, names, unresolved))
 }
 
 /**
@@ -129,7 +134,8 @@ export function computeStandings(
     const set = new Set(ids)
     const groupResults = results.filter((r) => set.has(r.homeTeamId) && set.has(r.awayTeamId))
     const overall = tabulate(ids, groupResults, criteria)
-    breakTie(ids, 0, overall, groupResults, criteria, names).forEach((id, i) => {
+    const unresolved = new Set<string>()
+    breakTie(ids, 0, overall, groupResults, criteria, names, unresolved).forEach((id, i) => {
       const a = overall.get(id)!
       rows.push({
         teamId: id,
@@ -142,7 +148,8 @@ export function computeStandings(
         goalsFor: a.gf,
         goalsAgainst: a.ga,
         goalDifference: a.gf - a.ga,
-        points: a.pts
+        points: a.pts,
+        unresolvedTie: unresolved.has(id) && a.played > 0
       })
     })
   }

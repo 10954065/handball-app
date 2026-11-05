@@ -107,3 +107,14 @@ the same secure preferences as any other window, and `reportWindow.ts` waits unt
 
 Generated files are stored in `match_reports`, so a backup includes them. A file is outdated when
 the current ledger's fingerprint differs from the one it was made from.
+
+## Competitions (phase 7)
+
+Standings and brackets are derived, not stored. `seasonStandings` calculates from finalized
+matches on every read, and `knockout_ties` stores only the structure: first-round teams and which
+fixture belongs to which tie. `resolveBracket` works out every later round from the results, so a
+correction reaches the bracket with nothing to keep in step. When a correction contradicts a
+fixture that already exists, the tie reports a problem for the competition administrator.
+
+`reportWindow.ts` renders any print route, so the competition report uses the same hidden window
+as the match report. Competition reports are made on request and are not archived.

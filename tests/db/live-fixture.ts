@@ -25,7 +25,7 @@ export function fakeTime(t: TestDb) {
   }
 }
 
-function team(ctx: Ctx, code: string) {
+export function team(ctx: Ctx, code: string) {
   const tm = createTeam(ctx, { name: `Team ${code}`, shortName: code, code, primaryColor: code === 'HOM' ? '#c00000' : '#0000c0', secondaryColor: '#ffffff' })
   for (let i = 1; i <= 14; i++) {
     createPlayer(ctx, {
@@ -41,7 +41,7 @@ function team(ctx: Ctx, code: string) {
   return tm
 }
 
-function confirmLineups(ctx: Ctx, matchId: string) {
+export function confirmLineups(ctx: Ctx, matchId: string) {
   for (const side of ['home', 'away'] as const) {
     const squad = getMatchSetup(ctx, matchId)[side].squad
     saveLineup(ctx, {

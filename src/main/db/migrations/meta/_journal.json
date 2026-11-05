@@ -29,6 +29,20 @@
       "when": 1793913830861,
       "tag": "0003_statistics_reports",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793917481238,
+      "tag": "0004_drop_standings",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1793917482960,
+      "tag": "0005_knockout_ties",
+      "breakpoints": true
     }
   ]
 }

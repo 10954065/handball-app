@@ -3,9 +3,9 @@
 | Layer | Tool | Location | What it proves |
 | --- | --- | --- | --- |
 | Rules engine (unit) | Vitest, node | `tests/unit` | Clock arithmetic, period plans, discipline, time-outs, lineup validation, ledger derivation. |
-| Services + database (integration) | Vitest against real SQLite files | `tests/db` | Migrations, constraints, transactions, auth, settings, backup/verify, the live match engine with simulated time and crashes, statistics and reports checked against a hand-counted match and raw SQL counts of the ledger, and Excel files read back with ExcelJS. |
+| Services + database (integration) | Vitest against real SQLite files | `tests/db` | Migrations, constraints, transactions, auth, settings, backup/verify, the live match engine with simulated time and crashes, statistics and reports checked against a hand-counted match and raw SQL counts of the ledger, Excel files read back with ExcelJS, and competitions played out through the live engine, including corrections reaching standings and brackets. |
 | UI components | Vitest + React Testing Library, jsdom, mocked preload bridge | `tests/ui` | Forms, validation, confirmation of critical actions. |
-| End-to-end | Playwright driving the built Electron app | `tests/e2e` | Real application: first-run setup, persistence across restarts, backup, demo mode, live match flows, PDF and Excel files on disk, the archive, and a correction reaching every view. Printing is checked up to the call to the system print dialog, which is stubbed. |
+| End-to-end | Playwright driving the built Electron app | `tests/e2e` | Real application: first-run setup, persistence across restarts, backup, demo mode, live match flows, PDF and Excel files on disk, the archive, and a correction reaching every view. Fixture generation, bracket creation and competition reports. Printing is checked up to the call to the system print dialog, which is stubbed. |
 
 better-sqlite3 13 ships Node-API binaries, so the same native module runs in Node (tests) and
 Electron (app). Database tests therefore exercise the real SQLite engine, not a mock.

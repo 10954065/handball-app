@@ -7,9 +7,11 @@ import type {
   AuditDTO,
   AuthStatus,
   BackupDTO,
+  BracketDTO,
   CompetitionDTO,
   DashboardDTO,
   IntegrityDTO,
+  KnockoutProposalDTO,
   LiveMatchDTO,
   LiveSanctionResultDTO,
   MatchDetailDTO,
@@ -21,6 +23,7 @@ import type {
   PlayerDTO,
   ReportFileDTO,
   SeasonDTO,
+  SeasonReportDTO,
   SessionUser,
   StandingRowDTO,
   StatisticsOverviewDTO,
@@ -68,7 +71,7 @@ import {
   startTimeoutSchema,
   voidEventSchema
 } from '../schemas/live'
-import { generateReportSchema, reportListQuery, statisticsQuery } from '../schemas/reports'
+import { createKnockoutSchema, generateFixturesSchema, generateReportSchema, knockoutProposalSchema, reportListQuery, saveSeasonReportSchema, scheduleTieSchema, seasonRef, statisticsQuery } from '../schemas/reports'
 
 const archiveInput = z.object({ id: z.string().uuid(), archived: z.boolean() })
 
@@ -182,7 +185,19 @@ export const contract = {
   'live.timeoutEnd': channel<LiveMatchDTO>()('operate_match', matchRef),
   'live.openScoreboard': channel<void>()('authenticated', matchRef),
 
+  // fixtures and knockout rounds
+  'fixtures.generate': channel<{ created: number }>()('manage_data', generateFixturesSchema),
+  'fixtures.clear': channel<{ deleted: number }>()('manage_data', seasonRef),
+  'knockout.get': channel<BracketDTO>()('authenticated', seasonRef),
+  'knockout.proposal': channel<KnockoutProposalDTO>()('authenticated', knockoutProposalSchema),
+  'knockout.create': channel<BracketDTO>()('manage_data', createKnockoutSchema),
+  'knockout.schedule': channel<BracketDTO>()('manage_data', scheduleTieSchema),
+  'knockout.clear': channel<void>()('manage_data', seasonRef),
+
   // statistics and reports
+  'seasons.report': channel<SeasonReportDTO>()('authenticated', seasonRef),
+  'seasons.saveReport': channel<{ path: string } | null>()('authenticated', saveSeasonReportSchema),
+  'seasons.printReport': channel<{ printed: boolean }>()('authenticated', seasonRef),
   'statistics.overview': channel<StatisticsOverviewDTO>()('authenticated', statisticsQuery),
   'statistics.export': channel<{ path: string } | null>()('authenticated', statisticsQuery),
   'reports.get': channel<MatchReportDTO>()('authenticated', matchRef),

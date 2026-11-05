@@ -5,6 +5,8 @@ import * as directory from '../../services/directory'
 import * as matches from '../../services/matches'
 import { saveMedia } from '../../services/media'
 import * as players from '../../services/players'
+import { clearFixtures, generateFixtures } from '../../services/fixtures'
+import { clearKnockout, createKnockout, getBracket, knockoutProposal, scheduleTie } from '../../services/knockout'
 import { seasonStandings } from '../../services/standings'
 import * as teams from '../../services/teams'
 
@@ -44,6 +46,13 @@ export const adminHandlers = {
   'seasons.update': (input, ctx) => competitions.updateSeason(ctx, input),
   'seasons.setTeams': (input, ctx) => competitions.setSeasonTeams(ctx, input),
   'seasons.standings': ({ id }, ctx) => seasonStandings(ctx, id),
+  'fixtures.generate': (input, ctx) => generateFixtures(ctx, input),
+  'fixtures.clear': ({ seasonId }, ctx) => clearFixtures(ctx, seasonId),
+  'knockout.get': ({ seasonId }, ctx) => getBracket(ctx, seasonId),
+  'knockout.proposal': (input, ctx) => knockoutProposal(ctx, input),
+  'knockout.create': (input, ctx) => createKnockout(ctx, input),
+  'knockout.schedule': (input, ctx) => scheduleTie(ctx, input),
+  'knockout.clear': ({ seasonId }, ctx) => clearKnockout(ctx, seasonId),
 
   'matches.list': (q, ctx) => matches.listMatches(ctx, q),
   'matches.get': ({ id }, ctx) => matches.getMatch(ctx, id),

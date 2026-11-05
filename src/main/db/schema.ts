@@ -394,22 +394,20 @@ export const timeouts = sqliteTable('timeouts', {
   status: text('status', { enum: ['active', 'completed', 'voided'] }).notNull().default('active')
 }, (t) => [index('timeouts_match_idx').on(t.matchId)])
 
-/** Derived standings cache, recomputed from finalized matches. */
-export const standings = sqliteTable('standings', {
+/**
+ * One tie of a knockout bracket. Only first-round ties name teams: everything after that is worked
+ * out from the results, so a correction reaches every later round without being copied anywhere.
+ */
+export const knockoutTies = sqliteTable('knockout_ties', {
   id: id(),
   seasonId: text('season_id').notNull().references(() => seasons.id, { onDelete: 'cascade' }),
-  groupName: text('group_name').notNull().default(''),
-  teamId: text('team_id').notNull().references(() => teams.id, { onDelete: 'cascade' }),
-  rank: integer('rank').notNull(),
-  played: integer('played').notNull(),
-  won: integer('won').notNull(),
-  drawn: integer('drawn').notNull(),
-  lost: integer('lost').notNull(),
-  goalsFor: integer('goals_for').notNull(),
-  goalsAgainst: integer('goals_against').notNull(),
-  points: integer('points').notNull(),
-  updatedAt: updatedAt()
-}, (t) => [uniqueIndex('standings_uq').on(t.seasonId, t.groupName, t.teamId)])
+  stage: text('stage', { enum: ['round_of_16', 'quarter_final', 'semi_final', 'third_place', 'final'] }).notNull(),
+  position: integer('position').notNull(),
+  homeTeamId: text('home_team_id').references(() => teams.id, { onDelete: 'restrict' }),
+  awayTeamId: text('away_team_id').references(() => teams.id, { onDelete: 'restrict' }),
+  matchId: text('match_id').references(() => matches.id, { onDelete: 'set null' }),
+  createdAt: createdAt()
+}, (t) => [uniqueIndex('knockout_ties_uq').on(t.seasonId, t.stage, t.position), uniqueIndex('knockout_ties_match_uq').on(t.matchId)])
 
 /** Derived per-match player statistics cache (rebuilt from the ledger on finalization). */
 export const playerStatistics = sqliteTable('player_statistics', {

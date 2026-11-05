@@ -15,7 +15,7 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 3. **Event ledger is authoritative.** `match_events` is append-only. Mistakes are corrected by
    voiding (`status='voided'`, who/when/why) and inserting a replacement (`replaces_event_id`).
    Every change is written to `audit_logs` in the same transaction.
-4. **Derived caches are not truth.** `standings`, `player_statistics`, `team_statistics` and the
+4. **Derived caches are not truth.** `player_statistics`, `team_statistics` and the
    result fields on `matches` are rebuilt from the ledger.
 5. **Idempotency.** `match_events.client_request_id` is unique per match, so an accidental double
    click cannot record the same event twice.
@@ -45,7 +45,7 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 | `suspensions` | One row per suspension/disqualification reduction (mirrors the ledger, for reporting). |
 | `substitutions` | Substitution history (mirrors the ledger). |
 | `timeouts` | Team time-outs: wall-clock start and end, monotonic start and owning process id. |
-| `standings` | Derived standings cache per season and group. |
+| `knockout_ties` | The ties of a knockout bracket. Only first-round ties name teams; later rounds are worked out from results. `match_id` links a tie to its fixture. |
 | `player_statistics` | Derived per-match player statistics cache. One row per match-sheet entry; `played` is true for starters, players brought on and anyone named in an active event. Rebuilt from the ledger in the transaction that finalizes or corrects a match. `playing_time_ms` is not filled yet. |
 | `team_statistics` | Derived per-match team statistics cache, rebuilt with `player_statistics`. A finalized match without a row, as in a backup from an older version, is rebuilt from its ledger when statistics are next read. |
 | `match_reports` | Archive of generated PDF/XLSX files, stored as blobs so backups include them. `ledger_digest` is the SHA-256 of the ledger the file was made from: when it differs from the current ledger the file is outdated. `content_key` is the SHA-256 of the whole report, so an identical report is not stored twice. `match_state` records whether the match was final. |

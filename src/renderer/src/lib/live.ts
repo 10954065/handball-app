@@ -31,7 +31,7 @@ export function useSetLive(matchId: string) {
   const qc = useQueryClient()
   return (data: LiveMatchDTO) => {
     qc.setQueryData(liveKey(matchId), data)
-    void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && /^(matches|dashboard|statistics|reports)\./.test(q.queryKey[0] as string) })
+    void qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === 'string' && /^(matches|dashboard|statistics|reports|seasons|knockout|competitions)\./.test(q.queryKey[0] as string) })
   }
 }
 

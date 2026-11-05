@@ -2,6 +2,38 @@
 
 All notable changes to HMMS are recorded here.
 
+## [0.7.0] - Phase 7: Competition management - 2026-11-05
+
+### Added
+- Fixture generator for leagues and group stages: single or home-and-away, with a preview before
+  anything is created. All fixtures are created together or not at all, and unprepared fixtures
+  can be deleted in one step. Played matches and confirmed lineups are never touched.
+- Knockout brackets for up to 16 teams, seeded so the top seeds meet last, with byes for the top
+  seeds when the number of teams is not a power of two and an optional third-place match.
+- Bracket from a group stage: group qualifiers are proposed in seed order once every group match
+  is finalized, and the order can be changed before the bracket is created.
+- Each tie is scheduled once both teams are known. A knockout match always needs a winner, so it
+  always ends in a shoot-out if it stays level, whatever the competition's rules say. A bracket
+  match cannot be finished level or left with an undecided shoot-out.
+- Winners move through the bracket from the results themselves. A correction that contradicts a
+  later fixture is shown as a problem to resolve, and nothing is changed automatically.
+- Competition report: standings, knockout rounds, leaders, discipline and all fixtures, as a
+  preview, PDF, Excel workbook and printout. A season with unplayed matches, or a knockout with no
+  champion yet, is marked as in progress.
+- Teams level on every tie-breaker are now marked. Their order is only alphabetical, which matters
+  when a qualifying place depends on it, and the bracket proposal warns about it.
+- Migrations `0004_drop_standings` and `0005_knockout_ties`.
+
+### Fixed
+- A league or group match could be created with a team not registered in the season, and a team
+  with group fixtures could change group. Either way, played matches silently left the table.
+  Both are now refused.
+- Saving a season's teams erased their seeds.
+
+### Removed
+- The unused `standings` table. Standings are calculated from finalized matches when they are
+  read, so they cannot go out of date.
+
 ## [0.6.0] - Phase 6: Statistics and reports - 2026-11-05
 
 ### Added

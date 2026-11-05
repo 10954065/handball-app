@@ -149,6 +149,27 @@ rate with nothing to measure is shown as a dash, not as 0%.
 Playing time is not calculated. It would be wrong whenever substitutions are not being recorded,
 so `player_statistics.playing_time_ms` stays empty.
 
+## Competitions (`fixtures.ts`, `bracket.ts`, `standings.ts`)
+
+Standings count finalized league and group matches only, and are calculated when read. Points and
+the order of tie-breakers are set per competition. Head-to-head criteria use only the matches
+between the teams still tied. Teams level on every criterion are marked: the order shown is then
+alphabetical, and the regulations must settle it. HMMS does not hold a draw.
+
+| Item | How it works |
+| --- | --- |
+| Round-robin | Circle method. Each team's home and away matches differ by at most one per leg, and are equal with an odd number of teams. A second leg reverses home and away. |
+| Seeding | The first team in the list is seed 1. Seeds 1 and 2 can only meet in the final. |
+| Byes | The bracket is the next power of two; the top seeds go straight to the second round. |
+| From groups | Group winners are seeded first, then runners-up, each in group order. With two groups this gives A1 v B2 and B1 v A2. |
+| Knockout rules | Draws are not allowed and a shoot-out is always enabled, on top of the competition's rules. A bracket match cannot end level or with an undecided shoot-out. |
+| Third place | Needs at least four teams. With three, one semi-final is a bye and has no loser. |
+| Corrections | Winners are worked out from results. A later fixture that no longer fits is flagged, never changed. An unplayed one can be deleted and scheduled again. A played one keeps its result and the tie stays unresolved for the competition to decide. |
+| Keeping the table whole | League and group matches need both teams registered in the season, and a team with such fixtures cannot change group. |
+
+Two-legged knockout ties and brackets above 16 teams are not supported, because the match stages
+stop at the round of 16. Check both against the regulations of the competition.
+
 ## Module map
 
 | File | Responsibility |
@@ -162,3 +183,6 @@ so `player_statistics.playing_time_ms` stays empty.
 | `discipline.ts` | Plan the ledger events for a disciplinary decision |
 | `timeouts.ts` | Validate team time-out requests |
 | `lineup.ts` | Validate match roster and starting lineup |
+| `fixtures.ts` | Round-robin pairings and the fixture schedule |
+| `bracket.ts` | Seeding, bracket structure and working out a bracket from results |
+| `standings.ts` | Points, ranking and tie-breakers |

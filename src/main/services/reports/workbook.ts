@@ -1,6 +1,7 @@
 import ExcelJS from 'exceljs'
 import { percent } from '@shared/domain/statistics'
-import type { MatchReportDTO, ReportPlayerDTO, ReportSideDTO, StatisticsOverviewDTO } from '@shared/dto'
+import { MATCH_STAGE_LABELS } from '@shared/domain/constants'
+import type { BracketDTO, MatchReportDTO, ReportPlayerDTO, ReportSideDTO, SeasonReportDTO, StatisticsOverviewDTO } from '@shared/dto'
 
 const PERCENT_FORMAT = '0.0"%"'
 const DATE_TIME = new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
@@ -179,10 +180,7 @@ export async function matchWorkbook(r: MatchReportDTO): Promise<Buffer> {
   return Buffer.from(await wb.xlsx.writeBuffer())
 }
 
-/** The statistics page as a workbook, for the filter the viewer chose. */
-export async function statisticsWorkbook(s: StatisticsOverviewDTO, organisationName: string, demo: boolean): Promise<Buffer> {
-  const wb = newWorkbook(organisationName)
-  const notice = demo ? DEMO_NOTICE : ''
+function statisticsSheets(wb: ExcelJS.Workbook, s: StatisticsOverviewDTO, notice: string): void {
   table(
     wb,
     'Players',
@@ -249,5 +247,94 @@ export async function statisticsWorkbook(s: StatisticsOverviewDTO, organisationN
     s.teams.map((t) => [t.name, t.played, t.won, t.drawn, t.lost, t.goalsFor, t.goalsConceded, percent(t.goalsFor, t.shots), percent(t.saves, t.saves + t.goalsConceded), t.technicalFaults, t.turnovers, t.steals, t.blocks, t.warnings, t.suspensions, t.disqualifications, t.timeouts]),
     notice
   )
+}
+
+/** The statistics page as a workbook, for the filter the viewer chose. */
+export async function statisticsWorkbook(s: StatisticsOverviewDTO, organisationName: string, demo: boolean): Promise<Buffer> {
+  const wb = newWorkbook(organisationName)
+  statisticsSheets(wb, s, demo ? DEMO_NOTICE : '')
+  return Buffer.from(await wb.xlsx.writeBuffer())
+}
+
+const STAGE_NAMES: Record<string, string> = { round_of_16: 'Round of 16', quarter_final: 'Quarter-final', semi_final: 'Semi-final', third_place: 'Third place', final: 'Final' }
+
+const score = (home: number | null | undefined, away: number | null | undefined) => (home === null || home === undefined || away === null || away === undefined ? null : `${home}:${away}`)
+
+function standingsSheet(wb: ExcelJS.Workbook, r: SeasonReportDTO, notice: string): void {
+  table(
+    wb,
+    'Standings',
+    [
+      { header: 'Group', width: 8 },
+      { header: 'Rank', width: 6 },
+      { header: 'Team', width: 28 },
+      { header: 'Played', width: 8 },
+      { header: 'Won', width: 6 },
+      { header: 'Drawn', width: 7 },
+      { header: 'Lost', width: 6 },
+      { header: 'Goals for', width: 10 },
+      { header: 'Goals against', width: 13 },
+      { header: 'Difference', width: 11 },
+      { header: 'Points', width: 8 },
+      { header: 'Note', width: 34 }
+    ],
+    r.standings.map((t) => [t.groupName || null, t.rank, t.teamName, t.played, t.won, t.drawn, t.lost, t.goalsFor, t.goalsAgainst, t.goalDifference, t.points, t.unresolvedTie ? 'Level on every criterion' : null]),
+    notice
+  )
+}
+
+function fixturesSheet(wb: ExcelJS.Workbook, r: SeasonReportDTO, notice: string): void {
+  table(
+    wb,
+    'Fixtures',
+    [
+      { header: 'Match', width: 14 },
+      { header: 'Date', width: 20 },
+      { header: 'Stage', width: 14 },
+      { header: 'Round', width: 7 },
+      { header: 'Group', width: 7 },
+      { header: 'Home', width: 26 },
+      { header: 'Away', width: 26 },
+      { header: 'Result', width: 8 },
+      { header: 'Shoot-out', width: 10 },
+      { header: 'Status', width: 16 }
+    ],
+    r.fixtures.map((m) => [m.matchNumber, DATE_TIME.format(m.scheduledAt), MATCH_STAGE_LABELS[m.stage], m.round, m.groupName, m.home.name, m.away.name, score(m.homeScore, m.awayScore), score(m.homeShootout, m.awayShootout), m.amended ? 'Final (amended)' : m.status]),
+    notice
+  )
+}
+
+function bracketSheet(wb: ExcelJS.Workbook, bracket: BracketDTO, notice: string): void {
+  table(
+    wb,
+    'Bracket',
+    [
+      { header: 'Stage', width: 14 },
+      { header: 'Tie', width: 5 },
+      { header: 'Home', width: 26 },
+      { header: 'Away', width: 26 },
+      { header: 'Result', width: 8 },
+      { header: 'Shoot-out', width: 10 },
+      { header: 'Winner', width: 26 },
+      { header: 'Problem', width: 50 }
+    ],
+    bracket.ties
+      .filter((t) => t.state !== 'bye')
+      .map((t) => {
+        const winner = [t.home, t.away].find((x) => x?.teamId === t.winnerTeamId)
+        return [STAGE_NAMES[t.stage], t.position, t.home?.name ?? t.homeSource, t.away?.name ?? t.awaySource, score(t.match?.homeScore, t.match?.awayScore), score(t.match?.homeShootout, t.match?.awayShootout), winner?.name ?? null, t.problem]
+      }),
+    notice
+  )
+}
+
+/** A competition report as a workbook: standings, fixtures, bracket and statistics. */
+export async function seasonWorkbook(r: SeasonReportDTO): Promise<Buffer> {
+  const wb = newWorkbook(r.organisationName)
+  const notice = [r.demo ? DEMO_NOTICE : null, r.inProgress ? `IN PROGRESS - ${r.played} of ${r.scheduled} matches finalized` : null].filter(Boolean).join('; ')
+  if (r.standings.length) standingsSheet(wb, r, notice)
+  fixturesSheet(wb, r, notice)
+  if (r.bracket?.ties.length) bracketSheet(wb, r.bracket, notice)
+  statisticsSheets(wb, r.statistics, notice)
   return Buffer.from(await wb.xlsx.writeBuffer())
 }

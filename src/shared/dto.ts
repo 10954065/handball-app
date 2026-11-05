@@ -15,6 +15,7 @@ import type {
   ShotZone,
   Side
 } from './domain/constants'
+import type { BracketStage, TieState } from './domain/bracket'
 import type { DecidedBy, ShootoutSide, ShootoutStatus } from './domain/flow'
 import type { ClockPhase } from './domain/live'
 import type { PeriodDef } from './domain/periods'
@@ -327,6 +328,7 @@ export interface StandingRowDTO {
   goalsAgainst: number
   goalDifference: number
   points: number
+  unresolvedTie: boolean
 }
 
 // ---------------------------------------------------------------- lineups (phase 3)
@@ -697,4 +699,66 @@ export interface ReportFileDTO {
   outdated: boolean
   generatedBy: string | null
   createdAt: number
+}
+
+/* Competition management */
+
+export interface BracketTeamDTO {
+  teamId: string
+  name: string
+  code: string
+  color: string
+  logoMediaId: string | null
+}
+
+export interface BracketTieDTO {
+  id: string
+  stage: BracketStage
+  position: number
+  home: BracketTeamDTO | null
+  away: BracketTeamDTO | null
+  homeSource: string | null
+  awaySource: string | null
+  state: TieState
+  problem: string | null
+  winnerTeamId: string | null
+  match: {
+    id: string
+    matchNumber: string
+    status: MatchStatus
+    scheduledAt: number
+    homeScore: number | null
+    awayScore: number | null
+    homeShootout: number | null
+    awayShootout: number | null
+  } | null
+}
+
+export interface BracketDTO {
+  ties: BracketTieDTO[]
+  champion: BracketTeamDTO | null
+}
+
+export interface KnockoutProposalDTO {
+  /** Qualified teams in proposed seed order. `label` says why, such as "A1" for winners of group A. */
+  teams: (BracketTeamDTO & { label: string | null })[]
+  /** Why a bracket cannot be made yet, if so. */
+  blocked: string | null
+  warnings: string[]
+}
+
+export interface SeasonReportDTO {
+  organisationName: string
+  footerNote: string
+  demo: boolean
+  competition: Pick<CompetitionDTO, 'name' | 'type' | 'category' | 'organizer' | 'pointsWin' | 'pointsDraw' | 'pointsLoss' | 'tiebreakers'>
+  season: Pick<SeasonDTO, 'id' | 'name' | 'startDate' | 'endDate' | 'status'>
+  played: number
+  scheduled: number
+  /** Matches are unplayed, or the knockout rounds have not produced a champion. */
+  inProgress: boolean
+  standings: StandingRowDTO[]
+  bracket: BracketDTO | null
+  fixtures: MatchSummaryDTO[]
+  statistics: StatisticsOverviewDTO
 }
