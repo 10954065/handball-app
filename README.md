@@ -73,6 +73,7 @@ starting Electron manually (`npm run dev` and the E2E tests handle this).
 
 - [User guide](docs/USER_GUIDE.md), [match operator guide](docs/OPERATOR_GUIDE.md) and
   [administrator guide](docs/ADMIN_GUIDE.md). All three are also in the app under Help & guides.
+- [AI Vision architecture](docs/AI_VISION_ARCHITECTURE.md), in development on the `ai-vision` branch
 - [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md)
 - [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md)
 - [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)

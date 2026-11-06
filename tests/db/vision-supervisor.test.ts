@@ -187,6 +187,13 @@ describe('when the service misbehaves', () => {
     await expect(vision.request('health', {}, 50)).rejects.toThrow(/did not answer/)
   })
 
+  it('stops a service that agrees to shut down and then does not leave', async () => {
+    const { vision } = make('lingers', { heartbeatMs: 60_000, shutdownTimeoutMs: 100 })
+    await vision.start()
+    await vision.stop()
+    expect(vision.status().state).toBe('stopped')
+  })
+
   it('stops a service that ignores the request to shut down', async () => {
     const { vision } = make('hang', { heartbeatMs: 60_000, shutdownTimeoutMs: 50 })
     await vision.start()

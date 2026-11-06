@@ -28,10 +28,14 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   if (mode === 'hang' || mode === 'crash' || (mode === 'hang-later' && requests > 1)) return
   if (cmd === 'shutdown') {
     send({ type: 'reply', id, ok: true, data: {} })
+    if (mode === 'lingers') return
     process.exit(0)
   }
   if (cmd === 'fail') return send({ type: 'reply', id, ok: false, error: 'Camera 2 is not connected.' })
   if (cmd === 'emit') return send({ type: 'frame', camera: 'a' }, Buffer.from('jpeg-bytes'))
   send({ type: 'reply', id, ok: true, data: { cpuPercent: 1, memoryUsedMb: 2, memoryTotalMb: 3, serviceMemoryMb: 4 } })
 })
-process.stdin.on('end', () => process.exit(0))
+process.stdin.on('end', () => {
+  if (mode !== 'lingers') process.exit(0)
+})
+if (mode === 'lingers') setInterval(() => undefined, 1000)

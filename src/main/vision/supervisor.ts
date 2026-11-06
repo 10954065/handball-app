@@ -77,9 +77,13 @@ export class VisionSupervisor {
     this.restartTimer = null
     const child = this.child
     if (child) {
+      const limit = this.options.shutdownTimeoutMs ?? 3000
       const exited = new Promise<void>((resolve) => child.once('exit', () => resolve()))
-      void this.request('shutdown', {}, this.options.shutdownTimeoutMs ?? 3000).catch(() => this.kill(child))
+      // Saying yes is not leaving. Closing HMMS waits here, so this must always end.
+      const deadline = setTimeout(() => this.kill(child), limit)
+      void this.request('shutdown', {}, limit).catch(() => this.kill(child))
       await exited
+      clearTimeout(deadline)
     }
     this.setState('stopped', null)
   }
