@@ -1,13 +1,17 @@
 import json
 import logging
 import platform
+import threading
 from collections.abc import Callable, Iterable
 from typing import Any
 
 import psutil
 
 from . import PROTOCOL_VERSION, __version__
+from .analysis import AnalysisWorker
 from .camera import KINDS, CameraSpec, CameraWorker, discover_usb
+from .detector import Detector
+from .models import MODELS, list_models, verified_path
 from .preview import PreviewPublisher
 from .protocol import Channel
 
@@ -15,6 +19,9 @@ log = logging.getLogger(__name__)
 
 #: More than this overloads the target laptop. Raise it only after benchmarking.
 MAX_CAMERAS = 3
+DEFAULT_MODEL = "yolox_s"
+DEFAULT_RATE = 10.0
+MAX_RATE = 30.0
 
 
 class CommandError(Exception):
@@ -27,6 +34,8 @@ class Service:
         self.running = True
         self.cameras: dict[str, CameraWorker] = {}
         self.preview: PreviewPublisher | None = None
+        self.analysis: AnalysisWorker | None = None
+        self.detector: tuple[str, int, Detector] | None = None
         self.commands: dict[str, Callable[[dict], Any]] = {
             "ping": lambda _args: {"pong": True},
             "health": lambda _args: self.health(),
@@ -34,6 +43,10 @@ class Service:
             "cameras.discover": lambda _args: self.discover(),
             "camera.open": self.open_camera,
             "camera.close": self.close_camera,
+            "models.list": lambda _args: list_models(),
+            "analysis.start": self.start_analysis,
+            "analysis.stop": lambda _args: self.stop_analysis(),
+            "analysis.pause": self.pause_analysis,
         }
 
     def health(self) -> dict:
@@ -82,8 +95,60 @@ class Service:
         return {}
 
     def close_all(self) -> None:
+        self.stop_analysis()
         for camera_id in list(self.cameras):
             self.close_camera({"id": camera_id})
+
+    def on_analysis_state(self, state: str, message: str | None = None, backend: str | None = None) -> None:
+        self.channel.send({"type": "analysis", "state": state, "message": message, "backend": backend})
+
+    def start_analysis(self, args: dict) -> dict:
+        key = args.get("model") or DEFAULT_MODEL
+        rate = args.get("rate") or DEFAULT_RATE
+        device = args.get("device") or 0
+        colours = args.get("colours")
+        if key not in MODELS or not isinstance(rate, int | float) or not 0 < rate <= MAX_RATE or not isinstance(device, int):
+            raise CommandError("Those analysis settings are not valid.")
+        path = verified_path(key)
+        if path is None:
+            raise CommandError(f"The {MODELS[key].name} model is not installed.")
+        self.stop_analysis()
+        # Loading takes seconds. On this thread it would stop the service answering health checks.
+        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, colours), name="model-load", daemon=True).start()
+        self.on_analysis_state("loading")
+        return {}
+
+    def load_and_run(self, key: str, device: int, path: Any, rate: float, colours: dict | None) -> None:
+        try:
+            if self.detector is None or self.detector[:2] != (key, device):
+                detector = Detector(path, MODELS[key].input_size, device)
+                detector.warm_up()
+                self.detector = (key, device, detector)
+            detector = self.detector[2]
+        except Exception:
+            log.exception("Could not load the model")
+            self.on_analysis_state("failed", "The model could not be loaded. Details are in the log folder.")
+            return
+        self.analysis = AnalysisWorker(detector.detect, lambda: list(self.cameras.values()), self.channel.send, rate, colours, lambda message: self.on_analysis_state("failed", message))
+        self.analysis.start()
+        self.on_analysis_state("running", backend=detector.backend)
+
+    def stop_analysis(self) -> dict:
+        if self.analysis is not None:
+            self.analysis.stop()
+            self.analysis = None
+            self.on_analysis_state("stopped")
+        return {}
+
+    def pause_analysis(self, args: dict) -> dict:
+        if self.analysis is None:
+            raise CommandError("Analysis is not running.")
+        if args.get("paused"):
+            self.analysis.paused.set()
+        else:
+            self.analysis.paused.clear()
+        self.on_analysis_state("paused" if args.get("paused") else "running", backend=self.detector[2].backend if self.detector else None)
+        return {}
 
     def handle(self, line: str) -> None:
         try:

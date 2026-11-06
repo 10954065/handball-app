@@ -4,7 +4,7 @@ import { listAudit } from '../../src/main/services/audit'
 import { cameraSpec, createCamera, deleteCamera, listCameras, updateCamera, type Secrets } from '../../src/main/services/cameras'
 import { CameraFeeds } from '../../src/main/vision/feeds'
 import { cameraInputSchema, cameraUpdateSchema } from '../../src/shared/schemas/vision'
-import type { CameraFeedDTO } from '../../src/shared/vision'
+import type { AnalysisDTO, CameraFeedDTO, CameraTracksDTO } from '../../src/shared/vision'
 import { testDb, type TestDb } from './helpers'
 
 /** Reversible and visibly different from the input, as the real encryption is. */
@@ -148,7 +148,9 @@ describe('camera feeds', () => {
   function make() {
     const send = vi.fn(async () => ({}))
     const changes: CameraFeedDTO[][] = []
-    return { feeds: new CameraFeeds(send, (s) => changes.push(s)), send, changes }
+    const analysis: AnalysisDTO[] = []
+    const tracks: CameraTracksDTO[] = []
+    return { feeds: new CameraFeeds(send, { onFeeds: (s) => changes.push(s), onAnalysis: (a) => analysis.push(a), onTracks: (t) => tracks.push(t) }), send, changes, analysis, tracks }
   }
 
   it('shows a camera as connecting as soon as it is opened', async () => {
@@ -235,6 +237,30 @@ describe('camera feeds', () => {
     feeds.onEvent({ type: 'camera', camera: ID, state: 'failed', message: 'This video file cannot be read.' }, Buffer.alloc(0))
     expect(feeds.states()[0].state).toBe('failed')
     expect(feeds.latest(ID)).toBeNull()
+  })
+
+  const trackEvent = { type: 'tracks', camera: ID, seq: 1, width: 1280, height: 720, fps: 9.5, inferenceMs: 24, dropped: 2, tracks: [{ id: 3, x: 1, y: 2, w: 3, h: 4, score: 0.9, team: 'home', teamConfidence: 0.8 }] }
+
+  it('passes tracks on and keeps the figures', () => {
+    const { feeds, tracks, analysis } = make()
+    feeds.onEvent({ type: 'analysis', state: 'running', message: null, backend: 'Graphics card' }, Buffer.alloc(0))
+    feeds.onEvent(trackEvent, Buffer.alloc(0))
+    expect(tracks[0].tracks[0]).toMatchObject({ id: 3, team: 'home' })
+    expect(analysis.at(-1)).toMatchObject({ state: 'running', backend: 'Graphics card', fps: 9.5, inferenceMs: 24, dropped: 2, tracked: 1 })
+  })
+
+  it('drops track messages that do not match the expected shape', () => {
+    const { feeds, tracks } = make()
+    feeds.onEvent({ ...trackEvent, tracks: [{ id: 'x' }] }, Buffer.alloc(0))
+    feeds.onEvent({ ...trackEvent, tracks: [{ ...trackEvent.tracks[0], team: 'referee' }] }, Buffer.alloc(0))
+    expect(tracks).toEqual([])
+  })
+
+  it('stops reporting analysis when the service goes away', () => {
+    const { feeds } = make()
+    feeds.onEvent({ type: 'analysis', state: 'running', message: null, backend: 'Processor' }, Buffer.alloc(0))
+    feeds.onServiceState('failed')
+    expect(feeds.analysis().state).toBe('stopped')
   })
 
   it('reports a camera the service refused', async () => {

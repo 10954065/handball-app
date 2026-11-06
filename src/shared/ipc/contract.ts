@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { cameraInputSchema, cameraRef, cameraUpdateSchema } from '../schemas/vision'
-import type { CameraDTO, CameraFeedDTO, UsbDevice, VisionStatus } from '../vision'
+import { cameraInputSchema, cameraRef, cameraUpdateSchema, pauseAnalysisSchema, startAnalysisSchema } from '../schemas/vision'
+import type { AnalysisDTO, CameraDTO, CameraFeedDTO, CameraTracksDTO, UsbDevice, VisionModelDTO, VisionStatus } from '../vision'
 import type { ChannelDef } from './define'
 import { channel } from './define'
 import type {
@@ -96,6 +96,11 @@ export const contract = {
   'vision.feeds': channel<CameraFeedDTO[]>()('authenticated', noInput),
   'vision.openCamera': channel<void>()('operate_match', cameraRef),
   'vision.closeCamera': channel<void>()('operate_match', cameraRef),
+  'vision.analysis': channel<AnalysisDTO>()('authenticated', noInput),
+  'vision.startAnalysis': channel<void>()('operate_match', startAnalysisSchema),
+  'vision.stopAnalysis': channel<void>()('operate_match', noInput),
+  'vision.pauseAnalysis': channel<void>()('operate_match', pauseAnalysisSchema),
+  'vision.models': channel<VisionModelDTO[]>()('authenticated', noInput),
   'cameras.list': channel<CameraDTO[]>()('authenticated', noInput),
   'cameras.create': channel<CameraDTO>()('manage_data', cameraInputSchema),
   'cameras.update': channel<CameraDTO>()('manage_data', cameraUpdateSchema),
@@ -245,6 +250,9 @@ export interface PushEvents {
   'vision.status': VisionStatus
   /** A camera connected, dropped or changed. Pictures are fetched separately, not pushed. */
   'vision.feeds': CameraFeedDTO[]
+  'vision.analysis': AnalysisDTO
+  /** Boxes for one analysed frame. Estimates only, and they never reach the match record. */
+  'vision.tracks': CameraTracksDTO
   'session.changed': { user: SessionUser | null }
   'data.reloaded': { mode: 'production' | 'demo' }
   'settings.changed': AppSettings

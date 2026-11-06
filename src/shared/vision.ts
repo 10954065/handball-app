@@ -93,3 +93,68 @@ export const cameraEventSchema = z.object({
   width: z.number().optional(),
   height: z.number().optional()
 })
+
+export const ANALYSIS_STATES = ['stopped', 'loading', 'running', 'paused', 'failed'] as const
+export type AnalysisState = (typeof ANALYSIS_STATES)[number]
+
+export interface AnalysisDTO {
+  state: AnalysisState
+  message: string | null
+  /** 'Graphics card' or 'Processor': what is actually in use. */
+  backend: string | null
+  fps: number
+  inferenceMs: number
+  dropped: number
+  tracked: number
+}
+
+export const analysisEventSchema = z.object({
+  type: z.literal('analysis'),
+  state: z.enum(ANALYSIS_STATES),
+  message: z.string().max(300).nullable(),
+  backend: z.string().max(40).nullable()
+})
+
+/** A tracking number is a temporary identity. It is never a player, and team is only an estimate. */
+export const trackSchema = z.object({
+  id: z.number(),
+  x: z.number(),
+  y: z.number(),
+  w: z.number(),
+  h: z.number(),
+  score: z.number(),
+  team: z.enum(['home', 'away']).nullable(),
+  teamConfidence: z.number()
+})
+export type TrackDTO = z.infer<typeof trackSchema>
+
+export const tracksEventSchema = z.object({
+  type: z.literal('tracks'),
+  camera: z.string(),
+  seq: z.number(),
+  width: z.number(),
+  height: z.number(),
+  tracks: z.array(trackSchema).max(100),
+  fps: z.number(),
+  inferenceMs: z.number(),
+  dropped: z.number()
+})
+
+export interface CameraTracksDTO {
+  camera: string
+  width: number
+  height: number
+  tracks: TrackDTO[]
+}
+
+export const visionModelSchema = z.object({
+  key: z.string(),
+  name: z.string(),
+  version: z.string(),
+  sizeMb: z.number(),
+  license: z.string(),
+  source: z.string(),
+  purpose: z.string(),
+  installed: z.boolean()
+})
+export type VisionModelDTO = z.infer<typeof visionModelSchema>

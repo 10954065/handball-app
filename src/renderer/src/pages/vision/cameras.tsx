@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Camera, CameraOff, Pencil, Plus, Trash2, Video } from 'lucide-react'
-import { CAMERA_KIND_LABELS, CAMERA_ROLE_LABELS, type CameraDTO, type CameraFeedDTO, type FeedState } from '@shared/vision'
+import { CAMERA_KIND_LABELS, CAMERA_ROLE_LABELS, type CameraDTO, type CameraFeedDTO, type CameraTracksDTO, type FeedState } from '@shared/vision'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { useConfirm } from '@/components/ui/confirm'
@@ -9,6 +9,7 @@ import { EmptyState, Panel, PanelHeader, Spinner } from '@/components/ui/misc'
 import { subscribe } from '@/lib/api'
 import { useApi, useApiMutation } from '@/lib/query'
 import { useSession } from '@/lib/session'
+import { AnalysisPanel, TrackOverlay, useTracks, type OverlayOptions } from './analysis'
 import { CameraDialog } from './camera-dialog'
 
 /** Ten pictures a second is what the service sends. Asking faster gains nothing. */
@@ -50,12 +51,15 @@ function FeedPicture({ feed, name }: { feed: CameraFeedDTO; name: string }) {
   )
 }
 
-function FeedTile({ feed, camera }: { feed: CameraFeedDTO; camera: CameraDTO | undefined }) {
+function FeedTile({ feed, camera, tracks, overlay }: { feed: CameraFeedDTO; camera: CameraDTO | undefined; tracks: CameraTracksDTO | undefined; overlay: OverlayOptions }) {
   const name = camera?.name ?? 'Camera'
   const label = FEED_LABEL[feed.state]
   return (
     <figure className="min-w-0" aria-label={`Camera ${name}`}>
-      <FeedPicture feed={feed} name={name} />
+      <div className="relative">
+        <FeedPicture feed={feed} name={name} />
+        <TrackOverlay data={tracks} options={overlay} />
+      </div>
       <figcaption className="mt-2 flex items-center justify-between gap-2 text-sm">
         <span className="truncate font-medium">{name}</span>
         <span className="flex items-center gap-2 text-xs text-muted">
@@ -110,6 +114,8 @@ export function CamerasPanel() {
   const { can } = useSession()
   const cameras = useApi('cameras.list')
   const feeds = useFeeds()
+  const tracks = useTracks()
+  const [overlay, setOverlay] = useState<OverlayOptions>({ boxes: true, ids: true, teams: true })
   const [editing, setEditing] = useState<CameraDTO | 'new' | null>(null)
   return (
     <>
@@ -132,10 +138,11 @@ export function CamerasPanel() {
       {feeds.length > 0 && (
         <Panel className="mt-5 p-5">
           <div className="grid gap-5 lg:grid-cols-2" aria-label="Live cameras">
-            {feeds.map((f) => <FeedTile key={f.id} feed={f} camera={cameras.data?.find((c) => c.id === f.id)} />)}
+            {feeds.map((f) => <FeedTile key={f.id} feed={f} camera={cameras.data?.find((c) => c.id === f.id)} tracks={tracks.get(f.id)} overlay={overlay} />)}
           </div>
         </Panel>
       )}
+      {feeds.length > 0 && <AnalysisPanel options={overlay} onOptions={setOverlay} />}
       {editing && <CameraDialog camera={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   )

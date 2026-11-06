@@ -1,8 +1,10 @@
 import { BrowserWindow, dialog } from 'electron'
 import { AppError } from '@shared/errors'
-import { usbDevicesSchema, type UsbDevice } from '@shared/vision'
+import { z } from 'zod'
+import { usbDevicesSchema, visionModelSchema, type UsbDevice } from '@shared/vision'
 import { cameraSpec, createCamera, deleteCamera, listCameras, updateCamera } from '../../services/cameras'
 import type { Ctx } from '../../services/ctx'
+import { matchColours } from '../../services/matches'
 import { feeds, secrets, vision } from '../../vision/instance'
 import type { HandlerMap } from '../types'
 
@@ -37,6 +39,21 @@ export const visionHandlers = {
   'vision.feeds': () => feeds.states(),
   'vision.openCamera': ({ id }, ctx) => openCamera(ctx, id),
   'vision.closeCamera': ({ id }) => feeds.close(id),
+  'vision.analysis': () => feeds.analysis(),
+  'vision.startAnalysis': async ({ matchId, rate }, ctx) => {
+    await ensureRunning()
+    await vision.request('analysis.start', { rate, colours: matchId ? matchColours(ctx, matchId) : null })
+  },
+  'vision.stopAnalysis': async () => {
+    await vision.request('analysis.stop')
+  },
+  'vision.pauseAnalysis': async ({ paused }) => {
+    await vision.request('analysis.pause', { paused })
+  },
+  'vision.models': async () => {
+    await ensureRunning()
+    return z.array(visionModelSchema).parse(await vision.request('models.list'))
+  },
   'cameras.list': (_i, ctx) => listCameras(ctx),
   'cameras.create': (input, ctx) => createCamera(ctx, secrets, input),
   'cameras.update': (input, ctx) => updateCamera(ctx, secrets, input),

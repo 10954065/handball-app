@@ -1,5 +1,5 @@
 import { execFileSync, execSync } from 'node:child_process'
-import { mkdtempSync } from 'node:fs'
+import { existsSync, mkdtempSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { expect, test, type ElectronApplication, type Page } from '@playwright/test'
@@ -124,4 +124,70 @@ test('a camera comes back by itself after the AI service is killed', async () =>
   await expect(page.getByLabel('Camera Match video').getByText('Live', { exact: true })).toBeVisible({ timeout: 30_000 })
   await page.getByRole('button', { name: 'Close', exact: true }).click()
   await app.close()
+})
+
+const SAMPLE = resolve('ai-vision/models/people-sample.jpg')
+
+/** Real people moving gently across a photograph, for the real model to find. */
+function peopleClip(): string {
+  const file = join(mkdtempSync(join(tmpdir(), 'hmms-clip-')), 'people.mp4')
+  const script = `
+import sys, cv2, numpy as np
+image = cv2.imread(sys.argv[2])
+h, w = image.shape[:2]
+out = cv2.VideoWriter(sys.argv[1], cv2.VideoWriter_fourcc(*'mp4v'), 25, (w, h))
+for i in range(1500):
+    shift = int(20 * np.sin(i / 25))
+    out.write(cv2.warpAffine(image, np.float32([[1, 0, shift], [0, 1, 0]]), (w, h), borderMode=cv2.BORDER_REPLICATE))
+out.release()
+`
+  execFileSync(resolve('ai-vision/.venv/Scripts/python.exe'), ['-c', script, file, SAMPLE])
+  return file
+}
+
+const clockSeconds = async (page: Page) => {
+  const [m, s] = ((await page.getByTestId('match-clock').textContent()) ?? '0:0').split(':').map(Number)
+  return m * 60 + s
+}
+
+test.describe('with the real model', () => {
+  test.skip(!existsSync(resolve('ai-vision/models/yolox_s.onnx')) || !existsSync(SAMPLE), 'The model is not installed')
+
+  test('real people are found and tracked, and the match clock keeps time meanwhile', async () => {
+    const { app, page } = await launch(newDataDir())
+    await openVisionInDemo(page)
+    await addVideoCamera(app, page, 'People', peopleClip())
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await expect(page.getByLabel('Camera People').getByText('Live', { exact: true })).toBeVisible({ timeout: 20_000 })
+
+    await page.getByRole('button', { name: 'Start analysis' }).click()
+    await expect(page.getByText('Analysing', { exact: true })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText('Graphics card')).toBeVisible()
+    await expect(page.getByRole('img', { name: /[1-9]\d* players tracked/ })).toBeVisible({ timeout: 20_000 })
+    await expect(page.getByText(/#T\d+/).first()).toBeVisible()
+    if (SHOTS) await page.screenshot({ path: join(SHOTS, 'vision-tracking.png') })
+
+    // Run a match with the graphics card busy: the clock must not depend on any of it.
+    await nav(page, 'Live Match Centre')
+    await page.locator('a[href^="#/live/"]').first().click()
+    await page.getByRole('button', { name: 'Start match' }).click()
+    await page.getByRole('dialog').getByRole('button', { name: 'Start match' }).click()
+    await page.getByRole('button', { name: /Start clock/ }).click()
+    await expect(page.getByRole('button', { name: /Stop clock/ })).toBeVisible()
+    const started = Date.now()
+    await page.waitForTimeout(6000)
+    await page.keyboard.press('h')
+    await page.keyboard.press('9')
+    await page.keyboard.press('g')
+    await expect(page.getByRole('region', { name: 'Match timeline' })).toContainText('Goal')
+    const elapsed = (Date.now() - started) / 1000
+    expect(Math.abs((await clockSeconds(page)) - elapsed)).toBeLessThanOrEqual(1.5)
+
+    await nav(page, 'AI Vision')
+    await page.getByRole('button', { name: 'Pause' }).click()
+    await expect(page.getByText('Paused', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Stop analysis' }).click()
+    await expect(page.getByRole('button', { name: 'Start analysis' })).toBeVisible()
+    await app.close()
+  })
 })

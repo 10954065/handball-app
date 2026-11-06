@@ -37,6 +37,7 @@ export function VisionPage() {
   if (!status) return <Spinner />
   const label = STATE_LABEL[status.state]
   const active = ACTIVE_STATES.includes(status.state)
+  const unavailable = status.state === 'running' ? 'Measuring' : 'Not running'
 
   return (
     <Page>
@@ -62,9 +63,9 @@ export function VisionPage() {
         {status.message && <p className="border-b border-border px-5 py-3 text-sm">{status.message}</p>}
         <dl className="grid grid-cols-2 gap-x-8 gap-y-3 px-5 py-4 text-sm lg:grid-cols-4">
           <Figure label="Service version" value={status.version ?? 'Not running'} />
-          <Figure label="Computer memory" value={status.health ? `${status.health.memoryUsedMb.toLocaleString()} of ${status.health.memoryTotalMb.toLocaleString()} MB` : 'Not running'} />
-          <Figure label="Processor" value={status.health ? `${Math.round(status.health.cpuPercent)}%` : 'Not running'} />
-          <Figure label="Service memory" value={status.health ? `${status.health.serviceMemoryMb.toLocaleString()} MB` : 'Not running'} />
+          <Figure label="Computer memory" value={status.health ? `${status.health.memoryUsedMb.toLocaleString()} of ${status.health.memoryTotalMb.toLocaleString()} MB` : unavailable} />
+          <Figure label="Processor" value={status.health ? `${Math.round(status.health.cpuPercent)}%` : unavailable} />
+          <Figure label="Service memory" value={status.health ? `${status.health.serviceMemoryMb.toLocaleString()} MB` : unavailable} />
         </dl>
       </Panel>
       <CamerasPanel />

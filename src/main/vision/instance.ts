@@ -34,10 +34,11 @@ export const vision = new VisionSupervisor({
   onEvent: (header, payload) => feeds.onEvent(header, payload)
 })
 
-export const feeds = new CameraFeeds(
-  (cmd, args) => vision.request(cmd, args),
-  (states) => push('vision.feeds', states)
-)
+export const feeds = new CameraFeeds((cmd, args) => vision.request(cmd, args), {
+  onFeeds: (states) => push('vision.feeds', states),
+  onAnalysis: (analysis) => push('vision.analysis', analysis),
+  onTracks: (tracks) => push('vision.tracks', tracks)
+})
 
 /** Camera passwords, encrypted by Windows for the signed-in account. */
 export const secrets: Secrets = {
