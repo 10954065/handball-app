@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { SHOT_OUTCOMES } from '../domain/constants'
 import { CAMERA_KINDS, CAMERA_ROLES, MAX_CAMERA_FPS, MAX_CAMERA_SIDE } from '../vision'
 
 const uuid = z.uuid()
@@ -46,3 +47,15 @@ export const cameraRef = z.object({ id: uuid })
 /** The match supplies the shirt colours. Without one, players are tracked but no team is estimated. */
 export const startAnalysisSchema = z.object({ matchId: uuid.nullable().default(null), rate: z.number().positive().max(30).default(10) })
 export const pauseAnalysisSchema = z.object({ paused: z.boolean() })
+
+export const listSuggestionsSchema = z.object({ matchId: uuid, status: z.enum(['pending', 'confirmed', 'rejected', 'corrected', 'expired']).optional() })
+
+/** Anything left out keeps what the suggestion said. */
+export const confirmSuggestionSchema = z.object({
+  id: uuid,
+  side: z.enum(['home', 'away']).nullable().optional(),
+  rosterId: uuid.nullable().optional(),
+  outcome: z.enum(SHOT_OUTCOMES).optional(),
+  matchMs: z.number().int().min(0).max(12 * 3_600_000).optional()
+})
+export const rejectSuggestionSchema = z.object({ id: uuid, reason: z.string().trim().max(200).nullable().default(null) })

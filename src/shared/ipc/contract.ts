@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { cameraInputSchema, cameraRef, cameraUpdateSchema, pauseAnalysisSchema, startAnalysisSchema } from '../schemas/vision'
-import type { AnalysisDTO, CameraDTO, CameraFeedDTO, CameraTracksDTO, UsbDevice, VisionModelDTO, VisionStatus } from '../vision'
+import { cameraInputSchema, cameraRef, cameraUpdateSchema, confirmSuggestionSchema, listSuggestionsSchema, pauseAnalysisSchema, rejectSuggestionSchema, startAnalysisSchema } from '../schemas/vision'
+import type { AnalysisDTO, CameraDTO, CameraFeedDTO, CameraTracksDTO, SuggestionDTO, UsbDevice, VisionModelDTO, VisionStatus } from '../vision'
 import type { ChannelDef } from './define'
 import { channel } from './define'
 import type {
@@ -101,6 +101,9 @@ export const contract = {
   'vision.stopAnalysis': channel<void>()('operate_match', noInput),
   'vision.pauseAnalysis': channel<void>()('operate_match', pauseAnalysisSchema),
   'vision.models': channel<VisionModelDTO[]>()('authenticated', noInput),
+  'suggestions.list': channel<SuggestionDTO[]>()('authenticated', listSuggestionsSchema),
+  'suggestions.confirm': channel<LiveMatchDTO>()('operate_match', confirmSuggestionSchema),
+  'suggestions.reject': channel<void>()('operate_match', rejectSuggestionSchema),
   'cameras.list': channel<CameraDTO[]>()('authenticated', noInput),
   'cameras.create': channel<CameraDTO>()('manage_data', cameraInputSchema),
   'cameras.update': channel<CameraDTO>()('manage_data', cameraUpdateSchema),
@@ -253,6 +256,8 @@ export interface PushEvents {
   'vision.analysis': AnalysisDTO
   /** Boxes for one analysed frame. Estimates only, and they never reach the match record. */
   'vision.tracks': CameraTracksDTO
+  /** The review queue of this match changed. */
+  'suggestions.changed': { matchId: string }
   'session.changed': { user: SessionUser | null }
   'data.reloaded': { mode: 'production' | 'demo' }
   'settings.changed': AppSettings

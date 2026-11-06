@@ -1,4 +1,4 @@
-export { recordEvent, editEvent, voidEvent } from './events'
+export { recordEvent, recordEventAt, editEvent, voidEvent } from './events'
 export { clockAction, endPeriod, finishMatch, getLive, recoverClock, setClock, startPeriod } from './flow'
 export { runningClocks, stopAllClocks, tickClocks } from './clock'
 export { recordSanction } from './sanctions'

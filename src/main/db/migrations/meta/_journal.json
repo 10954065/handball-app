@@ -50,6 +50,13 @@
       "when": 1793959980394,
       "tag": "0006_camera_devices",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "6",
+      "when": 1793962627364,
+      "tag": "0007_ai_suggestions",
+      "breakpoints": true
     }
   ]
 }

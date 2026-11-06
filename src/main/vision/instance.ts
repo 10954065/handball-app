@@ -1,4 +1,6 @@
 import { app, BrowserWindow, safeStorage } from 'electron'
+import type { z } from 'zod'
+import type { suggestionEventSchema } from '@shared/vision'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { log } from '../logger'
@@ -37,8 +39,12 @@ export const vision = new VisionSupervisor({
 export const feeds = new CameraFeeds((cmd, args) => vision.request(cmd, args), {
   onFeeds: (states) => push('vision.feeds', states),
   onAnalysis: (analysis) => push('vision.analysis', analysis),
-  onTracks: (tracks) => push('vision.tracks', tracks)
+  onTracks: (tracks) => push('vision.tracks', tracks),
+  onSuggestion: (suggestion) => suggestions.handle?.(suggestion)
 })
+
+/** Set once the database is open. Which match is analysed is decided when analysis starts. */
+export const suggestions: { matchId: string | null; handle: ((s: z.output<typeof suggestionEventSchema>) => void) | null } = { matchId: null, handle: null }
 
 /** Camera passwords, encrypted by Windows for the signed-in account. */
 export const secrets: Secrets = {

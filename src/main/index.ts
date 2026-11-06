@@ -17,10 +17,11 @@ import type { Ctx } from './services/ctx'
 import { getSettings } from './services/settings'
 import { runningClocks, stopAllClocks, tickClocks, tickTimeouts } from './services/live'
 import { liveMatchIds } from './services/matches'
+import { expireSuggestions, proposeSuggestion } from './services/suggestions'
 import { handleMediaProtocol, handleVisionProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
 import { openDataOrRecover } from './startup'
-import { feeds, vision } from './vision/instance'
+import { feeds, suggestions, vision } from './vision/instance'
 import { createMainWindow, createScoreboardWindow, hardenContents, isDev, loadScoreboard, rendererOrigins } from './windows'
 
 /** How often running match clocks are checked for the end of a period and checkpointed. */
@@ -46,6 +47,7 @@ const handlers: HandlerMap = {
   ...visionHandlers,
   'live.finish': (input, rc) => {
     const out = liveHandlers['live.finish'](input, rc)
+    expireSuggestions(rc, input.matchId)
     if (getSettings(rc).backup.onMatchFinalize) void backups?.runOnce('match finalized', true)
     return out
   },
@@ -105,6 +107,7 @@ if (!app.requestSingleInstanceLock()) {
       app.exit(1)
       return
     }
+    suggestions.handle = takeSuggestion
     // The scoreboard shows a match from the database that has just been closed.
     ctx.onReopen(() => {
       scoreboard?.close()
@@ -173,6 +176,18 @@ function tickLiveClocks(): void {
     ctx?.broadcast('live.changed', { matchId })
   }
   keepComputerAwake(runTick('live matches', liveMatchIds).length > 0)
+}
+
+/** A camera's opinion. It lands in the review queue and goes no further until an official acts. */
+function takeSuggestion(s: Parameters<NonNullable<typeof suggestions.handle>>[0]): void {
+  const matchId = suggestions.matchId
+  if (!ctx || !matchId) return
+  try {
+    const stored = proposeSuggestion(ctxOf(ctx), { matchId, category: s.category, side: s.side, jersey: s.jersey, trackId: s.trackId, confidence: s.confidence, cameraId: s.camera, ageMs: s.ageMs, evidence: s.evidence })
+    if (stored) ctx.broadcast('suggestions.changed', { matchId })
+  } catch (err) {
+    log.error('Could not store a suggestion', err)
+  }
 }
 
 /** The screens stay on for the whole of a live match, including breaks with the clock stopped. */

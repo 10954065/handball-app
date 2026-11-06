@@ -78,6 +78,49 @@ export function recordEvent(ctx: Ctx, input: z.output<typeof recordEventSchema>)
   return getLive(ctx, input.matchId)
 }
 
+/**
+ * Record an event at a moment already past, by the rules that apply to a correction: the time must
+ * fall inside its period, and players are checked as they stood then. A suggestion confirmed a few
+ * seconds after the action takes this route. A repeated clientRequestId records nothing.
+ */
+export function recordEventAt(ctx: Ctx, input: z.output<typeof recordEventSchema>, at: { periodSeq: number; matchMs: number }): LiveMatchDTO {
+  requireUser(ctx)
+  const dup = ctx.db
+    .select({ id: matchEvents.id })
+    .from(matchEvents)
+    .where(and(eq(matchEvents.matchId, input.matchId), eq(matchEvents.clientRequestId, input.clientRequestId)))
+    .get()
+  if (dup) return getLive(ctx, input.matchId)
+
+  const d = loadLive(ctx, input.matchId)
+  if (d.row.status !== 'live') throw new AppError('CONFLICT', 'The match is not in progress.')
+  if (clockView(ctx, d.clock, d.period).needsRecovery) throw new AppError('CONFLICT', 'Recover the match clock first.')
+  const period = getPeriod(d.plan, at.periodSeq)
+  if (!period || period.kind === 'shootout') throw new AppError('CONFLICT', 'This period cannot take a confirmed event.')
+  const ended = activeEvents(d.events).find((e) => e.type === 'period_end' && e.periodSeq === period.seq)
+  const latest = ended ? ended.matchMs : d.period?.seq === period.seq && d.clock.phase === 'in_period' ? d.elapsedMs : period.endMs
+  if (at.matchMs < period.startMs || at.matchMs > latest) {
+    throw new AppError('VALIDATION', `The time must be between ${formatMatchTime(period.startMs)} and ${formatMatchTime(latest)}.`)
+  }
+  const c: EventContext = {
+    roster: d.roster,
+    state: stateBefore(d, at, { id: '', seq: Number.MAX_SAFE_INTEGER }),
+    phase: 'in_period',
+    period,
+    shootout: null,
+    onCourtMax: d.row.rules.roster.onCourt,
+    timeoutActive: false,
+    shootoutExcluded: new Set()
+  }
+  const r = validateDraft(input.event, c)
+  if (!r.event) reject(r.errors)
+  const fields = r.event
+  tx(ctx, () => {
+    insertEvent(ctx, input.matchId, { ...fields, periodSeq: at.periodSeq, matchMs: at.matchMs, clientRequestId: input.clientRequestId })
+  })
+  return getLive(ctx, input.matchId)
+}
+
 function correctionTarget(ctx: Ctx, d: LiveData, eventId: string, allowed: ReadonlySet<string>): EventRow {
   if (!canCorrect(ctx, d)) {
     throw d.row.status === 'finished'
