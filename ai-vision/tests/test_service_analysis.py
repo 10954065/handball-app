@@ -64,6 +64,16 @@ class FakeDetector:
         return Detections(np.array([[10, 10, 110, 310]], np.float32), np.array([0.9], np.float32))
 
 
+class FakeReader:
+    loads = 0
+
+    def __init__(self, *_args):
+        FakeReader.loads += 1
+
+    def read(self, _image, _box, allowed):
+        return allowed[0]
+
+
 class BrokenDetector(FakeDetector):
     def warm_up(self):
         raise RuntimeError("out of graphics memory at C:/private/path")
@@ -74,14 +84,16 @@ class AnalysisCommands(unittest.TestCase):
         self.out = SafeBytes()
         self.service = Service(Channel(self.out))
         self.addCleanup(self.service.close_all)
-        self.originals = (service_module.Detector, service_module.verified_path)
+        self.originals = (service_module.Detector, service_module.verified_path, service_module.NumberReader)
+        service_module.NumberReader = FakeReader
+        FakeReader.loads = 0
         service_module.verified_path = lambda _key: "model.onnx"
         service_module.Detector = FakeDetector
         FakeDetector.loads = 0
         self.addCleanup(self.restore)
 
     def restore(self):
-        service_module.Detector, service_module.verified_path = self.originals
+        service_module.Detector, service_module.verified_path, service_module.NumberReader = self.originals
 
     def wait_for(self, predicate, timeout=4.0):
         deadline = time.monotonic() + timeout
@@ -110,6 +122,41 @@ class AnalysisCommands(unittest.TestCase):
         service_module.verified_path = lambda _key: None
         with self.assertRaisesRegex(CommandError, "model is not installed"):
             self.service.start_analysis({})
+
+    def test_tracking_runs_on_without_names_when_the_number_models_are_missing(self):
+        service_module.verified_path = lambda key: None if key.startswith("number") else "model.onnx"
+        self.service.start_analysis({"rate": 30, "numbers": {"a": [7, 13]}})
+        self.assertIn("shirt number models are not installed", self.state("running")["message"])
+
+    def test_a_reader_that_will_not_load_leaves_tracking_running(self):
+        def broken(*_args):
+            raise RuntimeError("detail")
+
+        service_module.NumberReader = broken
+        with self.assertLogs(level="ERROR"):
+            self.service.start_analysis({"rate": 30, "numbers": {"a": [7]}})
+            self.assertIn("could not be loaded", self.state("running")["message"])
+
+    def test_does_not_load_the_reader_without_a_team_sheet(self):
+        self.service.start_analysis({"rate": 30})
+        self.assertIsNone(self.state("running")["message"])
+        self.assertEqual(FakeReader.loads, 0)
+
+    def test_a_team_sheet_can_be_chosen_while_running(self):
+        self.service.start_analysis({"rate": 30})
+        self.state("running")
+        self.service.set_numbers({"numbers": {"a": [7]}})
+        self.assertEqual(self.service.analysis.numbers.sheet, {"a": [7]})
+        self.service.set_numbers({"numbers": None})
+        self.assertIsNone(self.service.analysis.numbers)
+
+    def test_choosing_a_team_sheet_before_analysis_starts_does_nothing_here(self):
+        self.assertEqual(self.service.set_numbers({"numbers": {"a": [7]}}), {})
+
+    def test_refuses_a_bad_team_sheet(self):
+        for bad in ("13", {"c": [1]}, {"a": "13"}, {"a": ["13"]}, {"a": [True]}, {"a": [-1]}, {"a": [1000]}, {"a": list(range(61))}):
+            with self.assertRaisesRegex(CommandError, "team sheet"):
+                self.service.start_analysis({"numbers": bad})
 
     def test_refuses_bad_settings(self):
         for bad in ({"model": "nope"}, {"rate": 500}, {"rate": "fast"}, {"device": "x"}):

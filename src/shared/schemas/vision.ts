@@ -45,3 +45,4 @@ export const cameraRef = z.object({ id: uuid })
 
 export const startAnalysisSchema = z.object({ rate: z.number().positive().max(30).default(10) })
 export const pauseAnalysisSchema = z.object({ paused: z.boolean() })
+export const setTeamSheetSchema = z.object({ matchId: uuid.nullable() })

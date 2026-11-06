@@ -1,9 +1,10 @@
 import { BrowserWindow, dialog } from 'electron'
 import { AppError } from '@shared/errors'
 import { z } from 'zod'
-import { usbDevicesSchema, visionModelSchema, type ShirtsDTO, type UsbDevice } from '@shared/vision'
+import { sheetNumbers, usbDevicesSchema, visionModelSchema, type ShirtsDTO, type TeamSheetDTO, type UsbDevice } from '@shared/vision'
 import { cameraSpec, createCamera, deleteCamera, listCameras, updateCamera } from '../../services/cameras'
 import type { Ctx } from '../../services/ctx'
+import { teamSheet } from '../../services/vision-sheet'
 import { feeds, secrets, vision } from '../../vision/instance'
 import type { HandlerMap } from '../types'
 
@@ -11,6 +12,19 @@ const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'mov', 'webm']
 
 /** For this session only. Kits change from one match to the next. */
 let shirts: ShirtsDTO = {}
+/** Only the match, so the sheet is always read fresh and never outlives a change of database. */
+let sheetMatch: string | null = null
+
+function currentSheet(ctx: Ctx): TeamSheetDTO | null {
+  if (!sheetMatch) return null
+  try {
+    return teamSheet(ctx, sheetMatch)
+  } catch (err) {
+    if (!(err instanceof AppError) || err.code !== 'NOT_FOUND') throw err
+    sheetMatch = null
+    return null
+  }
+}
 
 async function ensureRunning(): Promise<void> {
   await vision.start()
@@ -42,14 +56,22 @@ export const visionHandlers = {
   'vision.openCamera': ({ id }, ctx) => openCamera(ctx, id),
   'vision.closeCamera': ({ id }) => feeds.close(id),
   'vision.analysis': () => feeds.analysis(),
-  'vision.startAnalysis': async ({ rate }) => {
+  'vision.startAnalysis': async ({ rate }, ctx) => {
     await ensureRunning()
-    await vision.request('analysis.start', { rate, shirts })
+    const sheet = currentSheet(ctx)
+    await vision.request('analysis.start', { rate, shirts, numbers: sheet && sheetNumbers(sheet) })
   },
   'vision.shirts': () => shirts,
   'vision.setShirts': async (input) => {
     shirts = input
     if (feeds.analysis().state !== 'stopped') await vision.request('analysis.shirts', { shirts })
+  },
+  'vision.teamSheet': (_i, ctx) => currentSheet(ctx),
+  'vision.setTeamSheet': async ({ matchId }, ctx) => {
+    const sheet = matchId ? teamSheet(ctx, matchId) : null
+    sheetMatch = matchId
+    if (feeds.analysis().state !== 'stopped') await vision.request('analysis.numbers', { numbers: sheet && sheetNumbers(sheet) })
+    return sheet
   },
   'vision.stopAnalysis': async () => {
     await vision.request('analysis.stop')

@@ -16,12 +16,15 @@ import numpy as np
 from .camera import CameraWorker
 from .detector import Detections
 from .court import FRAME_EDGE, court_mask, on_court
+from .numbers import NumberVotes, NumberWorker
 from .roles import RoleAssigner
 from .tracker import Tracker, pan_shift, small_grey
 
 log = logging.getLogger(__name__)
 
 STATS_WINDOW_S = 3.0
+#: Officials have no number to read.
+TEAM_SIDES = ("a", "b")
 
 
 @dataclass
@@ -30,16 +33,18 @@ class CameraAnalysis:
     last_seq: int = 0
     roles: RoleAssigner | None = None
     previous: np.ndarray | None = None
+    votes: NumberVotes = field(default_factory=NumberVotes)
 
 
 class AnalysisWorker:
-    def __init__(self, detect: Callable[[np.ndarray], Detections], cameras: Callable[[], list[CameraWorker]], send: Callable[[dict[str, Any]], None], rate: float, shirts: dict[str, str] | None, on_error: Callable[[str], None]) -> None:
+    def __init__(self, detect: Callable[[np.ndarray], Detections], cameras: Callable[[], list[CameraWorker]], send: Callable[[dict[str, Any]], None], rate: float, shirts: dict[str, str] | None, on_error: Callable[[str], None], numbers: NumberWorker | None = None) -> None:
         self.detect = detect
         self.cameras = cameras
         self.send = send
         self.interval = 1.0 / rate
         self.shirts = shirts or {}
         self.on_error = on_error
+        self.numbers = numbers
         self.state: dict[str, CameraAnalysis] = {}
         self.paused = threading.Event()
         self.stopping = threading.Event()
@@ -49,11 +54,15 @@ class AnalysisWorker:
         self.thread = threading.Thread(target=self.run, name="analysis", daemon=True)
 
     def start(self) -> None:
+        if self.numbers is not None:
+            self.numbers.start()
         self.thread.start()
 
     def stop(self) -> None:
         self.stopping.set()
         self.thread.join(timeout=3.0)
+        if self.numbers is not None:
+            self.numbers.stop()
 
     def fps(self) -> float:
         times = self.times
@@ -82,6 +91,25 @@ class AnalysisWorker:
         for state in self.state.values():
             state.roles = RoleAssigner(shirts)
 
+    def set_numbers(self, numbers: NumberWorker | None) -> None:
+        """Takes effect at once. Numbers read against the last sheet mean nothing against this one."""
+        if self.numbers is not None:
+            self.numbers.stop()
+        self.numbers = numbers
+        if numbers is not None:
+            numbers.start()
+        for state in self.state.values():
+            state.votes = NumberVotes()
+
+    def name_players(self, image: np.ndarray, state: CameraAnalysis, tracks: list[Any], assigned: dict[int, str]) -> dict[int, int]:
+        numbers = self.numbers
+        if numbers is None:
+            return {}
+        sides = {t.id: assigned[t.id] for t in tracks if assigned.get(t.id) in TEAM_SIDES}
+        numbers.offer(state.votes, image, [(t.id, sides[t.id], t.box.copy()) for t in tracks if t.id in sides])
+        state.votes.forget_except({t.id for t in state.tracker.tracks})
+        return state.votes.assign(sides)
+
     @staticmethod
     def on_the_court(image: np.ndarray, detections: Detections) -> Detections:
         height, width = image.shape[:2]
@@ -100,6 +128,7 @@ class AnalysisWorker:
             roles.observe(image, track.id, track.box)
         assigned = roles.assign([t.id for t in tracks])
         roles.forget_except({t.id for t in state.tracker.tracks})
+        named = self.name_players(image, state, tracks, assigned)
         found = []
         for track in tracks:
             x1, y1, x2, y2 = (float(v) for v in track.box)
@@ -107,7 +136,7 @@ class AnalysisWorker:
             # whose feet are out of view: there, the court cannot vouch for them.
             if roles.active and track.id not in assigned and y2 >= image.shape[0] * FRAME_EDGE:
                 continue
-            found.append({"id": track.id, "x": round(x1), "y": round(y1), "w": round(x2 - x1), "h": round(y2 - y1), "score": round(track.score, 2), "role": assigned.get(track.id)})
+            found.append({"id": track.id, "x": round(x1), "y": round(y1), "w": round(x2 - x1), "h": round(y2 - y1), "score": round(track.score, 2), "role": assigned.get(track.id), "number": named.get(track.id)})
         return found
 
     def run(self) -> None:

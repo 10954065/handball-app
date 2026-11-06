@@ -153,6 +153,44 @@ const clockSeconds = async (page: Page) => {
 test.describe('with the real model', () => {
   test.skip(!existsSync(resolve('ai-vision/models/yolox_s.onnx')) || !existsSync(SAMPLE), 'The model is not installed')
 
+  test('a match gives the camera its team sheet, and analysis runs with it', async () => {
+    test.skip(!existsSync(resolve('ai-vision/models/ch_PP-OCRv4_rec_infer.onnx')), 'The shirt number models are not installed')
+    const { app, page } = await launch(newDataDir())
+    await openVisionInDemo(page)
+    await addVideoCamera(app, page, 'People', peopleClip())
+    await page.getByRole('button', { name: 'Open', exact: true }).click()
+    await expect(page.getByLabel('Camera People').getByText('Live', { exact: true })).toBeVisible({ timeout: 20_000 })
+
+    // Not every demonstration match has its players entered, and those are refused.
+    const match = page.getByLabel('Match', { exact: true })
+    const caption = page.getByText(/players on the match sheet/)
+    const choices = await match.locator('option').evaluateAll((all) => all.map((o) => (o as HTMLOptionElement).value).filter(Boolean))
+    for (const choice of choices) {
+      await match.selectOption(choice)
+      if (await caption.waitFor({ timeout: 700 }).then(() => true, () => false)) break
+    }
+    await expect(caption).toBeVisible()
+    const chosen = await match.locator('option:checked').innerText()
+    const home = chosen.split(' v ')[0]
+
+    await page.getByRole('button', { name: 'Set shirt colours' }).click()
+    await expect(page.getByRole('button', { name: home, exact: true })).toBeVisible()
+    await page.getByRole('dialog').getByRole('button', { name: 'Cancel' }).click()
+
+    await page.getByRole('button', { name: 'Start analysis' }).click()
+    await expect(page.getByText('Analysing', { exact: true })).toBeVisible({ timeout: 30_000 })
+    await expect(page.getByText(/shirt number models/)).toBeHidden()
+    await expect(page.getByText('Players named')).toBeVisible()
+    await expect(page.getByRole('img', { name: /[1-9]\d* players tracked/ })).toBeVisible({ timeout: 20_000 })
+
+    await match.selectOption('')
+    await expect(caption).toBeHidden()
+    await expect(page.getByText('Analysing', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'Stop analysis' }).click()
+    await expect(page.getByRole('button', { name: 'Start analysis' })).toBeVisible()
+    await app.close()
+  })
+
   test('real people are found and tracked, and the match clock keeps time meanwhile', async () => {
     const { app, page } = await launch(newDataDir())
     await openVisionInDemo(page)

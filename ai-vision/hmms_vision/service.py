@@ -13,6 +13,7 @@ from .analysis import AnalysisWorker
 from .camera import KINDS, CameraSpec, CameraWorker, discover_usb
 from .detector import Detector
 from .models import MODELS, list_models, verified_path
+from .numbers import NumberReader, NumberWorker
 from .preview import PreviewPublisher
 from .protocol import Channel
 from .roles import ROLE_OF
@@ -25,6 +26,10 @@ DEFAULT_MODEL = "yolox_s"
 DEFAULT_RATE = 10.0
 MAX_RATE = 30.0
 HEX_COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
+MAX_SHEET_PLAYERS = 60
+MAX_SHIRT_NUMBER = 999
+NUMBERS_NOT_INSTALLED = "The shirt number models are not installed, so players are being followed without names."
+NUMBERS_NOT_LOADED = "The shirt number models could not be loaded, so players are being followed without names."
 
 
 class CommandError(Exception):
@@ -39,6 +44,19 @@ def parse_shirts(shirts: Any) -> dict[str, str]:
     return shirts
 
 
+def parse_numbers(numbers: Any) -> dict[str, list[int]]:
+    """Each team's shirt numbers. Names never come here."""
+    if numbers is None:
+        return {}
+
+    def valid(side: Any, listed: Any) -> bool:
+        return side in ("a", "b") and isinstance(listed, list) and len(listed) <= MAX_SHEET_PLAYERS and all(type(n) is int and 0 <= n <= MAX_SHIRT_NUMBER for n in listed)
+
+    if not isinstance(numbers, dict) or not all(valid(side, listed) for side, listed in numbers.items()):
+        raise CommandError("That team sheet is not valid.")
+    return {side: listed for side, listed in numbers.items() if listed}
+
+
 class Service:
     def __init__(self, channel: Channel) -> None:
         self.channel = channel
@@ -47,6 +65,7 @@ class Service:
         self.preview: PreviewPublisher | None = None
         self.analysis: AnalysisWorker | None = None
         self.detector: tuple[str, int, Detector] | None = None
+        self.reader: NumberReader | None = None
         self.commands: dict[str, Callable[[dict], Any]] = {
             "ping": lambda _args: {"pong": True},
             "health": lambda _args: self.health(),
@@ -59,6 +78,7 @@ class Service:
             "analysis.stop": lambda _args: self.stop_analysis(),
             "analysis.pause": self.pause_analysis,
             "analysis.shirts": self.set_shirts,
+            "analysis.numbers": self.set_numbers,
         }
 
     def health(self) -> dict:
@@ -119,6 +139,7 @@ class Service:
         rate = args.get("rate") or DEFAULT_RATE
         device = args.get("device") or 0
         shirts = parse_shirts(args.get("shirts"))
+        numbers = parse_numbers(args.get("numbers"))
         if key not in MODELS or not isinstance(rate, int | float) or not 0 < rate <= MAX_RATE or not isinstance(device, int):
             raise CommandError("Those analysis settings are not valid.")
         path = verified_path(key)
@@ -126,11 +147,11 @@ class Service:
             raise CommandError(f"The {MODELS[key].name} model is not installed.")
         self.stop_analysis()
         # Loading takes seconds. On this thread it would stop the service answering health checks.
-        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, shirts), name="model-load", daemon=True).start()
+        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, shirts, numbers), name="model-load", daemon=True).start()
         self.on_analysis_state("loading")
         return {}
 
-    def load_and_run(self, key: str, device: int, path: Any, rate: float, shirts: dict[str, str]) -> None:
+    def load_and_run(self, key: str, device: int, path: Any, rate: float, shirts: dict[str, str], numbers: dict[str, list[int]]) -> None:
         try:
             if self.detector is None or self.detector[:2] != (key, device):
                 detector = Detector(path, MODELS[key].input_size, device)
@@ -141,9 +162,29 @@ class Service:
             log.exception("Could not load the model")
             self.on_analysis_state("failed", "The model could not be loaded. Details are in the log folder.")
             return
-        self.analysis = AnalysisWorker(detector.detect, lambda: list(self.cameras.values()), self.channel.send, rate, shirts, lambda message: self.on_analysis_state("failed", message))
+        worker, problem = self.number_worker(numbers)
+        self.analysis = AnalysisWorker(detector.detect, lambda: list(self.cameras.values()), self.channel.send, rate, shirts, lambda message: self.on_analysis_state("failed", message), worker)
         self.analysis.start()
-        self.on_analysis_state("running", backend=detector.backend)
+        self.on_analysis_state("running", problem, detector.backend)
+
+    def number_worker(self, numbers: dict[str, list[int]]) -> tuple[NumberWorker | None, str | None]:
+        """A worker for this team sheet, or the reason there is none. Tracking never depends on it."""
+        if not numbers:
+            return None, None
+        paths = verified_path("number_det"), verified_path("number_rec")
+        if None in paths:
+            return None, NUMBERS_NOT_INSTALLED
+        try:
+            if self.reader is None:
+                self.reader = NumberReader(*paths)
+        except Exception:
+            log.exception("Could not load the shirt number models")
+            return None, NUMBERS_NOT_LOADED
+        return NumberWorker(self.reader.read, numbers, self.on_numbers_failed), None
+
+    def on_numbers_failed(self, message: str) -> None:
+        paused = self.analysis is not None and self.analysis.paused.is_set()
+        self.on_analysis_state("paused" if paused else "running", message, self.detector[2].backend if self.detector else None)
 
     def stop_analysis(self) -> dict:
         if self.analysis is not None:
@@ -155,6 +196,15 @@ class Service:
     def set_shirts(self, args: dict) -> dict:
         if self.analysis is not None:
             self.analysis.set_shirts(parse_shirts(args.get("shirts")))
+        return {}
+
+    def set_numbers(self, args: dict) -> dict:
+        numbers = parse_numbers(args.get("numbers"))
+        if self.analysis is not None:
+            worker, problem = self.number_worker(numbers)
+            self.analysis.set_numbers(worker)
+            if problem:
+                self.on_numbers_failed(problem)
         return {}
 
     def pause_analysis(self, args: dict) -> dict:

@@ -25,6 +25,7 @@ class ModelInfo:
 
 
 YOLOX_SOURCE = "https://github.com/Megvii-BaseDetection/YOLOX/releases/tag/0.1.1rc0"
+OCR_SOURCE = "https://pypi.org/project/rapidocr-onnxruntime/1.4.4/"
 
 MODELS: dict[str, ModelInfo] = {
     m.key: m
@@ -36,6 +37,14 @@ MODELS: dict[str, ModelInfo] = {
         ModelInfo(
             "yolox_tiny", "YOLOX-Tiny", "0.1.1rc0", "yolox_tiny.onnx", "427cc366d34e27ff7a03e2899b5e3671425c262ea2291f88bb942bc1cc70b0f7",
             19, 416, "Apache-2.0", YOLOX_SOURCE, "Player detection when running without a graphics card.",
+        ),
+        ModelInfo(
+            "number_det", "PP-OCRv4 text detection", "4.0", "ch_PP-OCRv4_det_infer.onnx", "d2a7720d45a54257208b1e13e36a8479894cb74155a5efe29462512d42f49da9",
+            5, 736, "Apache-2.0", OCR_SOURCE, "Finds the number on a shirt.",
+        ),
+        ModelInfo(
+            "number_rec", "PP-OCRv4 text recognition", "4.0", "ch_PP-OCRv4_rec_infer.onnx", "48fc40f24f6d2a207a2b1091d3437eb3cc3eb6b676dc3ef9c37384005483683b",
+            11, 48, "Apache-2.0", OCR_SOURCE, "Reads the number on a shirt.",
         ),
     )
 }

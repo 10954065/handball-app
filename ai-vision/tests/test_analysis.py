@@ -11,6 +11,7 @@ import numpy as np
 from hmms_vision.analysis import AnalysisWorker
 from hmms_vision.camera import Frame
 from hmms_vision.detector import NOTHING, Detections, decode_grid, letterbox, people_from_output
+from hmms_vision.numbers import NumberWorker
 from hmms_vision.models import MODELS, file_hash, list_models, model_folder, verified_path
 from hmms_vision.court import court_mask, on_court
 from hmms_vision.roles import MAX_OFFICIALS, RoleAssigner, hex_to_lab, same_hue, torso_colour
@@ -330,10 +331,10 @@ class FakeCamera:
 
 
 class AnalysisLoopTest(unittest.TestCase):
-    def run_loop(self, detect, camera=None, colours=None, seconds=0.25, rate=50.0):
+    def run_loop(self, detect, camera=None, colours=None, seconds=0.25, rate=50.0, numbers=None):
         sent, errors = [], []
         camera = camera or FakeCamera()
-        worker = AnalysisWorker(detect, lambda: [camera], sent.append, rate, colours, errors.append)
+        worker = AnalysisWorker(detect, lambda: [camera], sent.append, rate, colours, errors.append, numbers)
         worker.start()
         time.sleep(seconds)
         worker.stop()
@@ -352,6 +353,28 @@ class AnalysisLoopTest(unittest.TestCase):
         detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
         sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": RED_HEX, "b": BLUE_HEX})
         self.assertEqual([t["role"] for m in sent[-3:] for t in m["tracks"]], ["a", "a", "a"])
+
+    def test_names_a_player_once_their_number_has_been_read_often_enough(self):
+        detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
+        errors = []
+        numbers = NumberWorker(lambda _image, _box, allowed: allowed[0], {"a": [13]}, errors.append, retry_s=0.0)
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": RED_HEX}, seconds=0.6, numbers=numbers)
+        self.assertEqual(errors, [])
+        self.assertIsNone(sent[0]["tracks"][0]["number"] if sent[0]["tracks"] else None)
+        self.assertEqual(sent[-1]["tracks"][0]["number"], 13)
+
+    def test_has_no_number_without_a_team_sheet(self):
+        detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": RED_HEX})
+        self.assertIsNone(sent[-1]["tracks"][0]["number"])
+
+    def test_never_reads_an_official(self):
+        detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
+        reads = []
+        numbers = NumberWorker(lambda *_args: reads.append(1), {"a": [13]}, lambda _e: None, retry_s=0.0)
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"official": RED_HEX}, numbers=numbers)
+        self.assertEqual(sent[-1]["tracks"][0]["role"], "official")
+        self.assertEqual(reads, [])
 
     def test_keeps_everyone_on_court_without_a_role_when_no_shirts_are_picked(self):
         detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))

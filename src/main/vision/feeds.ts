@@ -9,7 +9,7 @@ interface Feed {
 }
 
 const SERVICE_GONE: VisionState[] = ['stopped', 'failed', 'not_installed']
-const NO_ANALYSIS: AnalysisDTO = { state: 'stopped', message: null, backend: null, fps: 0, inferenceMs: 0, dropped: 0, tracked: 0 }
+const NO_ANALYSIS: AnalysisDTO = { state: 'stopped', message: null, backend: null, fps: 0, inferenceMs: 0, dropped: 0, tracked: 0, named: 0 }
 
 export interface FeedListeners {
   onFeeds: (states: CameraFeedDTO[]) => void
@@ -76,7 +76,7 @@ export class CameraFeeds {
     const tracks = tracksEventSchema.safeParse(header)
     if (tracks.success) {
       const { camera, width, height, fps, inferenceMs, dropped } = tracks.data
-      this.setAnalysis({ ...this.current, fps, inferenceMs, dropped, tracked: tracks.data.tracks.length })
+      this.setAnalysis({ ...this.current, fps, inferenceMs, dropped, tracked: tracks.data.tracks.length, named: tracks.data.tracks.filter((t) => t.number !== null).length })
       this.listeners.onTracks({ camera, width, height, tracks: tracks.data.tracks })
       return
     }

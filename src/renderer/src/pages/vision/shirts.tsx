@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent } from 'react'
-import { SHIRT_LABELS, SHIRT_SLOTS, type ShirtsDTO, type ShirtSlot } from '@shared/vision'
+import { SHIRT_SLOTS, shirtLabels, type ShirtsDTO, type ShirtSlot, type TeamSheetDTO } from '@shared/vision'
 import { Button } from '@/components/ui/button'
 import { Dialog } from '@/components/ui/dialog'
 import { ErrorNote, Spinner } from '@/components/ui/misc'
@@ -19,18 +19,20 @@ export function patchColour(data: Uint8ClampedArray): string {
   return `#${hex(channel(0))}${hex(channel(1))}${hex(channel(2))}`
 }
 
-export function ShirtSwatches({ shirts }: { shirts: ShirtsDTO }) {
+export function ShirtSwatches({ shirts, sheet }: { shirts: ShirtsDTO; sheet: TeamSheetDTO | null | undefined }) {
+  const labels = shirtLabels(sheet)
   const picked = SHIRT_SLOTS.filter((s) => shirts[s])
   if (!picked.length) return <span className="text-xs text-muted">No colours set, so everyone on court is followed.</span>
   return (
     <span className="flex items-center gap-1.5">
-      {picked.map((s) => <span key={s} title={SHIRT_LABELS[s]} aria-label={`${SHIRT_LABELS[s]} colour`} role="img" className="size-4 rounded border border-border-strong" style={{ background: shirts[s] }} />)}
+      {picked.map((s) => <span key={s} title={labels[s]} aria-label={`${labels[s]} colour`} role="img" className="size-4 rounded border border-border-strong" style={{ background: shirts[s] }} />)}
     </span>
   )
 }
 
 /** Click one shirt for each group on a paused picture. */
-export function ShirtDialog({ cameraId, shirts, onClose }: { cameraId: string; shirts: ShirtsDTO; onClose: () => void }) {
+export function ShirtDialog({ cameraId, shirts, sheet, onClose }: { cameraId: string; shirts: ShirtsDTO; sheet: TeamSheetDTO | null | undefined; onClose: () => void }) {
+  const labels = shirtLabels(sheet)
   const canvas = useRef<HTMLCanvasElement>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
@@ -90,7 +92,7 @@ export function ShirtDialog({ cameraId, shirts, onClose }: { cameraId: string; s
         {SHIRT_SLOTS.map((s) => (
           <Button key={s} size="sm" variant={slot === s ? 'primary' : 'secondary'} aria-pressed={slot === s} onClick={() => setSlot(s)}>
             {picked[s] && <span className="size-3.5 rounded-sm border border-white/40" style={{ background: picked[s] }} />}
-            {SHIRT_LABELS[s]}
+            {labels[s]}
           </Button>
         ))}
       </div>

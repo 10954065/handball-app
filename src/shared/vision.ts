@@ -106,6 +106,8 @@ export interface AnalysisDTO {
   inferenceMs: number
   dropped: number
   tracked: number
+  /** How many of those carry a shirt number that has been read and agreed. */
+  named: number
 }
 
 export const analysisEventSchema = z.object({
@@ -115,7 +117,10 @@ export const analysisEventSchema = z.object({
   backend: z.string().max(40).nullable()
 })
 
-/** A tracking number is a temporary identity. It is never a player. Role comes from the shirt. */
+/**
+ * A tracking number is a temporary identity. It is never a player. Role comes from the shirt.
+ * The shirt number is one from the team sheet that several frames agreed on, or null.
+ */
 export const trackSchema = z.object({
   id: z.number(),
   x: z.number(),
@@ -123,7 +128,8 @@ export const trackSchema = z.object({
   w: z.number(),
   h: z.number(),
   score: z.number(),
-  role: z.enum(['a', 'b', 'official']).nullable()
+  role: z.enum(['a', 'b', 'official']).nullable(),
+  number: z.number().int().nullable().default(null)
 })
 export type TrackDTO = z.infer<typeof trackSchema>
 
@@ -163,3 +169,38 @@ export type ShirtSlot = (typeof SHIRT_SLOTS)[number]
 export const SHIRT_LABELS: Record<ShirtSlot, string> = { a: 'Team A', b: 'Team B', official: 'Officials', keeperA: 'Team A goalkeeper', keeperB: 'Team B goalkeeper' }
 export const shirtsSchema = z.partialRecord(z.enum(SHIRT_SLOTS), z.string().regex(/^#[0-9a-f]{6}$/i))
 export type ShirtsDTO = z.infer<typeof shirtsSchema>
+
+export interface SheetPlayerDTO {
+  number: number
+  name: string
+}
+
+export interface SheetTeamDTO {
+  name: string
+  players: SheetPlayerDTO[]
+}
+
+/** The players a camera can name. Team A is the home side and Team B the away side. */
+export interface TeamSheetDTO {
+  matchId: string
+  a: SheetTeamDTO
+  b: SheetTeamDTO
+}
+
+/** All the service is told. Names stay in the main process. */
+export const sheetNumbers = (sheet: TeamSheetDTO) => ({ a: sheet.a.players.map((p) => p.number), b: sheet.b.players.map((p) => p.number) })
+
+export function shirtLabels(sheet: TeamSheetDTO | null | undefined): Record<ShirtSlot, string> {
+  if (!sheet) return SHIRT_LABELS
+  return { ...SHIRT_LABELS, a: sheet.a.name, b: sheet.b.name, keeperA: `${sheet.a.name} goalkeeper`, keeperB: `${sheet.b.name} goalkeeper` }
+}
+
+/** What to call someone on the picture. A name appears only when their number is on the sheet. */
+export function personLabel(track: Pick<TrackDTO, 'role' | 'number'>, sheet: TeamSheetDTO | null | undefined): string {
+  if (track.role === 'official') return 'Official'
+  if (!track.role) return 'Player'
+  const team = shirtLabels(sheet)[track.role]
+  if (track.number === null) return team
+  const player = sheet?.[track.role].players.find((p) => p.number === track.number)
+  return player ? `${player.number} ${player.name}` : `${team} ${track.number}`
+}
