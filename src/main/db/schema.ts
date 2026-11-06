@@ -504,6 +504,25 @@ export const auditLogs = sqliteTable('audit_logs', {
   note: text('note')
 }, (t) => [index('audit_logs_at_idx').on(t.at), index('audit_logs_match_idx').on(t.matchId)])
 
+/**
+ * A camera saved for AI Vision. A USB camera is stored by name, because Windows renumbers devices.
+ * The address never holds a password: that is encrypted for this Windows account in its own column.
+ */
+export const cameraDevices = sqliteTable('camera_devices', {
+  id: id(),
+  name: text('name').notNull(),
+  kind: text('kind', { enum: ['usb', 'ip', 'phone', 'file'] }).notNull(),
+  source: text('source').notNull(),
+  username: text('username'),
+  passwordEncrypted: text('password_encrypted'),
+  width: integer('width'),
+  height: integer('height'),
+  fps: integer('fps'),
+  role: text('role', { enum: ['main', 'goal', 'sideline', 'other'] }).notNull().default('main'),
+  createdAt: createdAt(),
+  updatedAt: updatedAt()
+})
+
 export const backupHistory = sqliteTable('backup_history', {
   id: id(),
   kind: text('kind', { enum: ['auto', 'manual', 'pre_restore', 'pre_update', 'external'] }).notNull(),

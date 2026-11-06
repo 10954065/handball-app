@@ -43,6 +43,13 @@
       "when": 1793917482960,
       "tag": "0005_knockout_ties",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1793959980394,
+      "tag": "0006_camera_devices",
+      "breakpoints": true
     }
   ]
 }

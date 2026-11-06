@@ -1,5 +1,6 @@
 import { z } from 'zod'
-import type { VisionStatus } from '../vision'
+import { cameraInputSchema, cameraRef, cameraUpdateSchema } from '../schemas/vision'
+import type { CameraDTO, CameraFeedDTO, UsbDevice, VisionStatus } from '../vision'
 import type { ChannelDef } from './define'
 import { channel } from './define'
 import type {
@@ -91,6 +92,15 @@ export const contract = {
   'vision.status': channel<VisionStatus>()('authenticated', noInput),
   'vision.start': channel<VisionStatus>()('operate_match', noInput),
   'vision.stop': channel<VisionStatus>()('operate_match', noInput),
+  'vision.discover': channel<UsbDevice[]>()('operate_match', noInput),
+  'vision.feeds': channel<CameraFeedDTO[]>()('authenticated', noInput),
+  'vision.openCamera': channel<void>()('operate_match', cameraRef),
+  'vision.closeCamera': channel<void>()('operate_match', cameraRef),
+  'cameras.list': channel<CameraDTO[]>()('authenticated', noInput),
+  'cameras.create': channel<CameraDTO>()('manage_data', cameraInputSchema),
+  'cameras.update': channel<CameraDTO>()('manage_data', cameraUpdateSchema),
+  'cameras.delete': channel<void>()('manage_data', cameraRef),
+  'cameras.chooseVideo': channel<{ path: string } | null>()('manage_data', noInput),
 
   'app.reportError': channel<void>()(
     'public',
@@ -233,6 +243,8 @@ export type ChannelOutput<K extends ChannelName> = Contract[K] extends ChannelDe
 export interface PushEvents {
   /** The vision service changed state, or sent fresh health figures. */
   'vision.status': VisionStatus
+  /** A camera connected, dropped or changed. Pictures are fetched separately, not pushed. */
+  'vision.feeds': CameraFeedDTO[]
   'session.changed': { user: SessionUser | null }
   'data.reloaded': { mode: 'production' | 'demo' }
   'settings.changed': AppSettings

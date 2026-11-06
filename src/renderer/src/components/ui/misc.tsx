@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { Loader2, type LucideIcon } from 'lucide-react'
+import { ApiError } from '@/lib/api'
 import { cn } from '@/lib/cn'
 
 export function Panel({ className, children }: { className?: string; children: ReactNode }) {
@@ -83,7 +84,13 @@ export function Spinner({ label = 'Loading', className }: { label?: string; clas
 
 export function ErrorNote({ error }: { error: unknown }) {
   const msg = error instanceof Error ? error.message : 'Something went wrong.'
-  return <div className="rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-red-300">{msg}</div>
+  const details = error instanceof ApiError ? (error.details ?? []).map((d) => d.replace(/^[\w.]+: /, '')) : []
+  return (
+    <div className="rounded-md border border-danger/40 bg-danger/10 px-4 py-3 text-sm text-red-300">
+      {msg}
+      {details.length > 0 && <ul className="mt-1 list-disc pl-4">{details.map((d) => <li key={d}>{d}</li>)}</ul>}
+    </div>
+  )
 }
 
 interface StatProps {

@@ -17,10 +17,10 @@ import type { Ctx } from './services/ctx'
 import { getSettings } from './services/settings'
 import { runningClocks, stopAllClocks, tickClocks, tickTimeouts } from './services/live'
 import { liveMatchIds } from './services/matches'
-import { handleMediaProtocol, registerMediaScheme } from './mediaProtocol'
+import { handleMediaProtocol, handleVisionProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
 import { openDataOrRecover } from './startup'
-import { vision } from './vision/instance'
+import { feeds, vision } from './vision/instance'
 import { createMainWindow, createScoreboardWindow, hardenContents, isDev, loadScoreboard, rendererOrigins } from './windows'
 
 /** How often running match clocks are checked for the end of a period and checkpointed. */
@@ -106,9 +106,13 @@ if (!app.requestSingleInstanceLock()) {
       return
     }
     // The scoreboard shows a match from the database that has just been closed.
-    ctx.onReopen(() => scoreboard?.close())
+    ctx.onReopen(() => {
+      scoreboard?.close()
+      void feeds.closeAll()
+    })
     registerIpc(ctx, handlers, rendererOrigins())
     handleMediaProtocol(ctx)
+    handleVisionProtocol(ctx, feeds)
     backups = new AutoBackupScheduler(ctx)
     backups.reschedule()
     clockTimer = setInterval(tickLiveClocks, CLOCK_TICK_MS)

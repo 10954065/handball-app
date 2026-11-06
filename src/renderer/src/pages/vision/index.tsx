@@ -8,6 +8,7 @@ import { ErrorNote, PageHeader, Panel, PanelHeader, Spinner } from '@/components
 import { subscribe } from '@/lib/api'
 import { useApi, useApiMutation } from '@/lib/query'
 import { useSession } from '@/lib/session'
+import { CamerasPanel } from './cameras'
 
 const STATE_LABEL: Record<VisionState, { text: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }> = {
   stopped: { text: 'Stopped', tone: 'neutral' },
@@ -66,6 +67,7 @@ export function VisionPage() {
           <Figure label="Service memory" value={status.health ? `${status.health.serviceMemoryMb.toLocaleString()} MB` : 'Not running'} />
         </dl>
       </Panel>
+      <CamerasPanel />
     </Page>
   )
 }

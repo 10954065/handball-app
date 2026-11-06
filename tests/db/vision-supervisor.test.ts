@@ -77,6 +77,20 @@ describe('running the service', () => {
     expect(seen.map((s) => s.state).slice(0, 2)).toEqual(['starting', 'running'])
   })
 
+  it('makes a second caller wait for a start already under way', async () => {
+    const { vision } = make('normal')
+    await Promise.all([vision.start(), vision.start()])
+    expect(vision.status().state).toBe('running')
+  })
+
+  it('makes a caller wait for an automatic restart to finish', async () => {
+    const { vision, seen } = make('crash', { maxRestarts: 1 })
+    await vision.start()
+    await vi.waitFor(() => expect(seen.some((s) => s.state === 'restarting')).toBe(true), { timeout: 5000 })
+    await vision.start()
+    expect(['running', 'failed']).toContain(vision.status().state)
+  })
+
   it('answers commands, and passes on a refusal meant for the operator', async () => {
     const { vision } = make('normal')
     await vision.start()
@@ -194,6 +208,7 @@ describe.runIf(existsSync(realService))('the real Python service', () => {
     await vision.start()
     expect(vision.status()).toMatchObject({ state: 'running', version: '0.1.0' })
     await expect(vision.request('health')).resolves.toMatchObject({ memoryTotalMb: expect.any(Number) })
+    await expect(vision.request('cameras.discover')).resolves.toEqual(expect.arrayContaining([expect.objectContaining({ index: 0 })]))
     await vision.stop()
     expect(vision.status().state).toBe('stopped')
   }, 30_000)

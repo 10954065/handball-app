@@ -52,6 +52,7 @@ export class VisionSupervisor {
   private restartTimer: NodeJS.Timeout | null = null
   private readonly pending = new Map<number, Pending>()
   private started: { resolve: () => void; timer: NodeJS.Timeout } | null = null
+  private waiting: (() => void)[] = []
 
   constructor(private readonly options: VisionOptions) {}
 
@@ -61,7 +62,9 @@ export class VisionSupervisor {
 
   /** Resolves once the service is running or has failed. It never rejects: read the status. */
   async start(): Promise<void> {
-    if (this.child) return
+    if (this.state === 'running') return
+    // Already on its way: the caller needs the outcome, not a promise that was never made.
+    if (this.child || this.restartTimer) return new Promise((resolve) => this.waiting.push(resolve))
     this.wanted = true
     this.restarts = 0
     this.restartTimes = []
@@ -104,6 +107,7 @@ export class VisionSupervisor {
       return Promise.resolve()
     }
     this.setState(state, null)
+    this.options.log.info('Starting the vision service')
     const child = spawn(target.command, target.args, {
       cwd: target.cwd,
       windowsHide: true,
@@ -230,14 +234,21 @@ export class VisionSupervisor {
     this.setState('restarting', this.message)
     this.message = null
     const delay = (this.options.restartDelayMs ?? 1000) * 2 ** (this.restartTimes.length - 1)
-    this.restartTimer = setTimeout(() => void this.launch('restarting'), delay)
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null
+      void this.launch('restarting')
+    }, delay)
   }
 
   private settleStart(): void {
-    if (!this.started || this.state === 'restarting') return
-    clearTimeout(this.started.timer)
-    this.started.resolve()
-    this.started = null
+    if (this.state === 'restarting') return
+    if (this.started) {
+      clearTimeout(this.started.timer)
+      this.started.resolve()
+      this.started = null
+    }
+    for (const resolve of this.waiting) resolve()
+    this.waiting = []
   }
 
   private setState(state: VisionState, message: string | null): void {

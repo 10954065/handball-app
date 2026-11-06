@@ -1,7 +1,9 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, safeStorage } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { log } from '../logger'
+import type { Secrets } from '../services/cameras'
+import { CameraFeeds } from './feeds'
 import { VisionSupervisor, type VisionCommand } from './supervisor'
 
 /** The packaged service, or in development the Python environment in ai-vision/. */
@@ -16,13 +18,30 @@ function locateService(): VisionCommand | null {
   return existsSync(python) ? { command: python, args: ['-m', 'hmms_vision'], cwd } : null
 }
 
+function push(event: string, payload: unknown): void {
+  for (const w of BrowserWindow.getAllWindows()) {
+    if (!w.isDestroyed()) w.webContents.send(`hmms-push:${event}`, payload)
+  }
+}
+
 export const vision = new VisionSupervisor({
   locate: locateService,
   log,
   onStatus: (status) => {
-    for (const w of BrowserWindow.getAllWindows()) {
-      if (!w.isDestroyed()) w.webContents.send('hmms-push:vision.status', status)
-    }
+    feeds.onServiceState(status.state)
+    push('vision.status', status)
   },
-  onEvent: () => undefined
+  onEvent: (header, payload) => feeds.onEvent(header, payload)
 })
+
+export const feeds = new CameraFeeds(
+  (cmd, args) => vision.request(cmd, args),
+  (states) => push('vision.feeds', states)
+)
+
+/** Camera passwords, encrypted by Windows for the signed-in account. */
+export const secrets: Secrets = {
+  available: () => safeStorage.isEncryptionAvailable(),
+  encrypt: (text) => safeStorage.encryptString(text).toString('base64'),
+  decrypt: (text) => safeStorage.decryptString(Buffer.from(text, 'base64'))
+}

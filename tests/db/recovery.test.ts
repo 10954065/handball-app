@@ -51,7 +51,7 @@ const newest = bundledMigrations[bundledMigrations.length - 1]
 /** Make an existing database look as if the newest migration has not been applied yet. */
 function rewindNewestMigration(file: string): void {
   const db = new Database(file)
-  db.exec('DROP TABLE IF EXISTS knockout_ties')
+  for (const [, table] of newest.sql.matchAll(/CREATE TABLE `(\w+)`/g)) db.exec(`DROP TABLE IF EXISTS ${table}`)
   db.prepare('DELETE FROM __hmms_migrations WHERE id = ?').run(newest.id)
   db.close()
 }
