@@ -1,5 +1,5 @@
 import type { z } from 'zod'
-import { analysisEventSchema, ballEventSchema, cameraEventSchema, frameEventSchema, suggestionEventSchema, tracksEventSchema, type AnalysisDTO, type BallPositionDTO, type CameraFeedDTO, type CameraSpec, type CameraTracksDTO, type VisionState } from '@shared/vision'
+import { analysisEventSchema, cameraEventSchema, frameEventSchema, suggestionEventSchema, tracksEventSchema, type AnalysisDTO, type CameraFeedDTO, type CameraSpec, type CameraTracksDTO, type VisionState } from '@shared/vision'
 
 type Send = (cmd: string, args: unknown) => Promise<unknown>
 
@@ -17,7 +17,6 @@ export interface FeedListeners {
   onAnalysis: (analysis: AnalysisDTO) => void
   onTracks: (tracks: CameraTracksDTO) => void
   onSuggestion: (suggestion: z.output<typeof suggestionEventSchema>) => void
-  onBall: (ball: BallPositionDTO) => void
 }
 
 /**
@@ -81,11 +80,6 @@ export class CameraFeeds {
       const { camera, width, height, fps, inferenceMs, dropped } = tracks.data
       this.setAnalysis({ ...this.current, fps, inferenceMs, dropped, tracked: tracks.data.tracks.length })
       this.listeners.onTracks({ camera, width, height, tracks: tracks.data.tracks })
-      return
-    }
-    const ball = ballEventSchema.safeParse(header)
-    if (ball.success) {
-      this.listeners.onBall({ camera: ball.data.camera, x: ball.data.x, y: ball.data.y })
       return
     }
     const suggestion = suggestionEventSchema.safeParse(header)

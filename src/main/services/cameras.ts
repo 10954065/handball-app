@@ -2,8 +2,8 @@ import { asc, eq } from 'drizzle-orm'
 import type { z } from 'zod'
 import { AppError } from '@shared/errors'
 import type { cameraInputSchema, cameraUpdateSchema } from '@shared/schemas/vision'
-import type { CameraDTO, CameraSpec, GoalAreasDTO, UsbDevice } from '@shared/vision'
-import { cameraCalibrations, cameraDevices } from '../db/schema'
+import type { CameraDTO, CameraSpec, UsbDevice } from '@shared/vision'
+import { cameraDevices } from '../db/schema'
 import { audit } from './audit'
 import { type Ctx, notFound, nowOf, tx, uuid } from './ctx'
 
@@ -16,29 +16,8 @@ export interface Secrets {
 
 type Row = typeof cameraDevices.$inferSelect
 
-function toDTO(ctx: Ctx, r: Row): CameraDTO {
-  return { id: r.id, name: r.name, kind: r.kind, source: r.source, username: r.username, hasPassword: !!r.passwordEncrypted, width: r.width, height: r.height, fps: r.fps, role: r.role, goalAreas: goalAreasOf(ctx, r.id) }
-}
-
-export function goalAreasOf(ctx: Ctx, cameraId: string): GoalAreasDTO | null {
-  const saved = ctx.db.select().from(cameraCalibrations).where(eq(cameraCalibrations.cameraId, cameraId)).get()
-  return saved ? (saved.goalAreas as GoalAreasDTO) : null
-}
-
-export function setGoalAreas(ctx: Ctx, cameraId: string, goalAreas: GoalAreasDTO): void {
-  const current = row(ctx, cameraId)
-  tx(ctx, () => {
-    ctx.db.insert(cameraCalibrations).values({ cameraId, goalAreas, updatedAt: nowOf(ctx) }).onConflictDoUpdate({ target: cameraCalibrations.cameraId, set: { goalAreas, updatedAt: nowOf(ctx) } }).run()
-    audit(ctx, { action: 'camera.goalAreas', entity: 'camera_devices', entityId: cameraId, note: current.name })
-  })
-}
-
-/** Teams change ends at half time. Returns the new areas. */
-export function swapEnds(ctx: Ctx, cameraId: string): GoalAreasDTO {
-  const current = goalAreasOf(ctx, cameraId) ?? notFound('Goal areas')
-  const swapped: GoalAreasDTO = { ...current, leftDefendedBy: current.leftDefendedBy === 'home' ? 'away' : 'home' }
-  setGoalAreas(ctx, cameraId, swapped)
-  return swapped
+function toDTO(r: Row): CameraDTO {
+  return { id: r.id, name: r.name, kind: r.kind, source: r.source, username: r.username, hasPassword: !!r.passwordEncrypted, width: r.width, height: r.height, fps: r.fps, role: r.role }
 }
 
 const row = (ctx: Ctx, id: string): Row => ctx.db.select().from(cameraDevices).where(eq(cameraDevices.id, id)).get() ?? notFound('Camera')
@@ -49,7 +28,7 @@ function seal(secrets: Secrets, password: string): string {
 }
 
 export function listCameras(ctx: Ctx): CameraDTO[] {
-  return ctx.db.select().from(cameraDevices).orderBy(asc(cameraDevices.name)).all().map((r) => toDTO(ctx, r))
+  return ctx.db.select().from(cameraDevices).orderBy(asc(cameraDevices.name)).all().map(toDTO)
 }
 
 export function createCamera(ctx: Ctx, secrets: Secrets, input: z.output<typeof cameraInputSchema>): CameraDTO {
@@ -60,7 +39,7 @@ export function createCamera(ctx: Ctx, secrets: Secrets, input: z.output<typeof 
     ctx.db.insert(cameraDevices).values({ ...fields, id, passwordEncrypted, updatedAt: nowOf(ctx) }).run()
     audit(ctx, { action: 'camera.create', entity: 'camera_devices', entityId: id, note: `${fields.name} (${fields.kind})` })
   })
-  return toDTO(ctx, row(ctx, id))
+  return toDTO(row(ctx, id))
 }
 
 export function updateCamera(ctx: Ctx, secrets: Secrets, input: z.output<typeof cameraUpdateSchema>): CameraDTO {
@@ -71,7 +50,7 @@ export function updateCamera(ctx: Ctx, secrets: Secrets, input: z.output<typeof 
     ctx.db.update(cameraDevices).set({ ...fields, passwordEncrypted, updatedAt: nowOf(ctx) }).where(eq(cameraDevices.id, id)).run()
     audit(ctx, { action: 'camera.update', entity: 'camera_devices', entityId: id, note: `${fields.name} (${fields.kind})` })
   })
-  return toDTO(ctx, row(ctx, id))
+  return toDTO(row(ctx, id))
 }
 
 export function deleteCamera(ctx: Ctx, id: string): void {

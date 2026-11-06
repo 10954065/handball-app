@@ -523,13 +523,6 @@ export const cameraDevices = sqliteTable('camera_devices', {
   updatedAt: updatedAt()
 })
 
-/** Where things are in a camera's picture, as fractions of the frame. Marked by hand, per camera. */
-export const cameraCalibrations = sqliteTable('camera_calibrations', {
-  cameraId: text('camera_id').primaryKey().references(() => cameraDevices.id, { onDelete: 'cascade' }),
-  goalAreas: text('goal_areas', { mode: 'json' }).notNull(),
-  updatedAt: updatedAt()
-})
-
 /**
  * What the AI thinks happened. Kept apart from match_events on purpose: nothing here counts towards
  * a score or a statistic until an official confirms it and the match engine records an event.

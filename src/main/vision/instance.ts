@@ -40,8 +40,7 @@ export const feeds = new CameraFeeds((cmd, args) => vision.request(cmd, args), {
   onFeeds: (states) => push('vision.feeds', states),
   onAnalysis: (analysis) => push('vision.analysis', analysis),
   onTracks: (tracks) => push('vision.tracks', tracks),
-  onSuggestion: (suggestion) => suggestions.handle?.(suggestion),
-  onBall: (ball) => push('vision.ball', ball)
+  onSuggestion: (suggestion) => suggestions.handle?.(suggestion)
 })
 
 /** Set once the database is open. Which match is analysed is decided when analysis starts. */

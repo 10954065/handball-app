@@ -54,7 +54,6 @@ export interface CameraDTO {
   height: number | null
   fps: number | null
   role: CameraRole
-  goalAreas: GoalAreasDTO | null
 }
 
 export interface UsbDevice {
@@ -203,12 +202,3 @@ export const suggestionEventSchema = z.object({
   ageMs: z.number().min(0).max(120_000),
   evidence: z.unknown()
 })
-
-const unit = z.number().min(0).max(1)
-/** x1, y1, x2, y2 as fractions of the frame. */
-export const zoneSchema = z.tuple([unit, unit, unit, unit]).refine(([x1, y1, x2, y2]) => x1 < x2 && y1 < y2, 'A goal area needs a width and a height.')
-export const goalAreasSchema = z.object({ left: zoneSchema.nullable(), right: zoneSchema.nullable(), leftDefendedBy: z.enum(['home', 'away']) })
-export type GoalAreasDTO = z.infer<typeof goalAreasSchema>
-
-export const ballEventSchema = z.object({ type: z.literal('ball'), camera: z.string(), x: unit, y: unit })
-export type BallPositionDTO = { camera: string; x: number; y: number }

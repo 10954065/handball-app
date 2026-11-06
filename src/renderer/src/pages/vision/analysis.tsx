@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Pause, Play, Square } from 'lucide-react'
-import type { AnalysisState, BallPositionDTO, CameraTracksDTO, TrackDTO } from '@shared/vision'
+import type { AnalysisState, CameraTracksDTO, TrackDTO } from '@shared/vision'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/input'
@@ -15,7 +15,6 @@ export interface OverlayOptions {
   boxes: boolean
   ids: boolean
   teams: boolean
-  ball: boolean
 }
 
 const STATE_LABEL: Record<AnalysisState, { text: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }> = {
@@ -35,13 +34,6 @@ export function useTracks(): Map<string, CameraTracksDTO> {
   return tracks
 }
 
-/** The ball's last position per camera. A marker only: it fades as soon as nothing updates it. */
-export function useBall(): Map<string, BallPositionDTO> {
-  const [balls, setBalls] = useState(new Map<string, BallPositionDTO>())
-  useEffect(() => subscribe('vision.ball', (b) => setBalls((current) => new Map(current).set(b.camera, b))), [])
-  return balls
-}
-
 function trackLabel(track: TrackDTO, options: OverlayOptions): string {
   const parts = options.ids ? [`#T${track.id}`] : []
   if (options.teams) parts.push(track.team ? `${track.team === 'home' ? 'Home' : 'Away'}?` : 'Team unknown')
@@ -49,7 +41,7 @@ function trackLabel(track: TrackDTO, options: OverlayOptions): string {
 }
 
 /** Drawn on top of the picture. The viewBox makes one unit one pixel of the original frame. */
-export function TrackOverlay({ data, ball, options }: { data: CameraTracksDTO | undefined; ball: BallPositionDTO | undefined; options: OverlayOptions }) {
+export function TrackOverlay({ data, options }: { data: CameraTracksDTO | undefined; options: OverlayOptions }) {
   if (!data) return null
   return (
     <svg viewBox={`0 0 ${data.width} ${data.height}`} preserveAspectRatio="xMidYMid meet" className="pointer-events-none absolute inset-0 size-full" role="img" aria-label={`${data.tracks.length} players tracked`}>
@@ -67,7 +59,6 @@ export function TrackOverlay({ data, ball, options }: { data: CameraTracksDTO | 
           </g>
         )
       })}
-      {options.ball && ball && <circle aria-label="Ball" cx={ball.x * data.width} cy={ball.y * data.height} r={data.height / 60} fill="none" stroke="var(--gold)" strokeWidth={data.width / 320} />}
     </svg>
   )
 }
@@ -133,7 +124,6 @@ export function AnalysisPanel({ options, onOptions }: { options: OverlayOptions;
         <Switch checked={options.boxes} onCheckedChange={toggle('boxes')} label="Player boxes" />
         <Switch checked={options.ids} onCheckedChange={toggle('ids')} label="Tracking numbers" />
         <Switch checked={options.teams} onCheckedChange={toggle('teams')} label="Team estimate" />
-        <Switch checked={options.ball} onCheckedChange={toggle('ball')} label="Ball marker" />
       </div>
     </Panel>
   )
