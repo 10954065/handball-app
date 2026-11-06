@@ -11,8 +11,8 @@ Ball tracking, goal suggestions and the review queue were built and then removed
 | 1 Audit | Architecture, licences, measurements on the target laptop | Done |
 | 2 Foundation | Python service, supervision, AI Vision screen | Done |
 | 3 Cameras | USB, network, phone and video file, live preview | Done. No physical webcam or network camera tested yet |
-| 4 Player detection | Detection, tracking, court filter, shirt roles, overlay | Done. Tried on three frames of a real match, not yet on a full live run |
-| 5 Player identification | Shirt numbers checked against the match sheet, player names on the picture | Done. Tried on three frames of a real match, not on live video. Accuracy unmeasured |
+| 4 Player detection | Detection, tracking, court filter, shirt and shorts roles, reconnecting lost players, overlay | Done. Measured on 8 minutes of a real league match |
+| 5 Player identification | Shirt numbers checked against the match sheet, player names on the picture | Done. Measured on 8 minutes of a real league match. Few players are named yet |
 | 6 to 8 Ball, events, fusion | Goal and shot suggestions | **Removed** at the owner's request |
 | 9 Analytics | Statistics for each player: shots, misses and more | **Not started.** Needs the ball |
 | 10 Recording | Segmented recording, evidence clips | **Not started** |
@@ -39,11 +39,13 @@ Python service          cameras, detector, court filter, tracker, shirt roles, s
 
 **Who is followed.** Each frame, the court is found from its surface colour, ignoring brightness, because it has two shades and the camera may pan. Someone counts if their feet are on it. If nobody appears to be on it, there is no court in view and everyone stays.
 
-**Who is who.** An operator clicks a shirt for Team A, Team B, the officials and optionally each goalkeeper, on a paused picture. Automatic grouping was tried on real footage and failed: the smallest shirt group was not the officials. Exact colours failed too, because sun and shadow move them and kits are patterned. Matching is by hue direction with a brightness limit, voted over frames, with at most two officials. An unmatched shirt hides someone only if their feet are out of view. Hiding a real player is the worse mistake.
+**Who is who.** An operator clicks a shirt for Team A, Team B, the officials and optionally each goalkeeper, on a paused picture. When both teams wear the same shirts, the operator clicks each team's shorts too, and the shorts then decide the team. An official or a goalkeeper still goes by their own shirt. Automatic grouping was tried on real footage and failed: the smallest shirt group was not the officials. Exact colours failed too, because sun and shadow move them and kits are patterned. Shirts are matched by hue direction with a brightness limit. Shorts are matched by how much of the shorts area shows the picked colour, because legs and shadow turn the middle colour of red shorts dark. Black, grey and white have no hue and are matched by brightness alone. Labels are voted over frames, with at most two officials. An unmatched shirt hides someone only if their feet are out of view. Hiding a real player is the worse mistake.
 
-**Who a player is.** An operator chooses the match, which gives the camera the numbers on each team's match sheet. The service is told numbers only: names stay in the main process, and the screen looks them up. The text models can read anything, so they are not asked what a shirt says. They are asked how well each number on that team's list fits, and a number not on the list gets no answer. One reading names nobody: three readings must agree, at twice the count of any other number. A number goes to one person on a team, officials are never read, and people who are too small or overlapping are skipped, so a number cannot land on the wrong person. Reading runs on its own thread on the processor, about 200 ms a person, and takes the newest picture only, so it cannot slow tracking. If the models are missing, tracking carries on and says so.
+**Who a player is.** An operator chooses the match, which gives the camera the numbers on each team's match sheet. The service is told numbers only: names stay in the main process, and the screen looks them up. The text models can read anything, so they are not asked what a shirt says. They are asked how well each number on that team's list fits, and a number not on the list gets no answer. Text the model reads mostly as letters is ignored, because a chest badge or a sponsor's name squeezed into digits reads as 1 or 2. One reading names nobody: three readings must agree, at twice the count of any other number. A number goes to one person on a team, officials are never read, and people who are too small or overlapping are skipped, so a number cannot land on the wrong person. Reading runs on its own thread on the processor, about 200 ms a person, and takes the newest picture only, so it cannot slow tracking. If the models are missing, tracking carries on and says so.
 
-**Panning.** The whole picture's movement is measured between frames and applied to every track, so a moving camera does not lose everyone's number.
+**Panning.** The whole picture's movement is measured between frames and applied to every track, so a moving camera does not lose everyone.
+
+**Reconnecting.** Most tracks on a real match ended within two seconds, for many reasons: players crossing, going undetected for a moment, the bottom banner, fast camera moves, distance, the picture's edge. A new tracking number loses everything learnt about the player. So someone who appears close to where a player was lost, within about 3.5 seconds, at a similar size and in the same kit (shirt colour and how coloured the shorts are), takes that player's number back. Remembering longer joined the wrong people.
 
 ## Files
 
@@ -97,12 +99,25 @@ These come from a test script and a still picture. The benchmark module in phase
 
 ## Known limits
 
-- **Shirt numbers are unproven.** On three frames of a real match, against a made-up 14-player list that held the true numbers, 3 of the 8 numbers readable by eye were read and none was misread. Two shirts with no visible number gave a one-off false reading. Agreement across frames is meant to remove those, which has not been measured on video, and the thresholds were set on those same frames. A number facing away cannot be read, so some players will stay unnamed.
-- **A name is lost with its tracking number.** If tracking loses someone, their new tracking number starts with no readings.
+- **Measured on real footage.** 8 minutes of Fire v Air Force (Ghana Handball Association league, broadcast at 720p), analysed at 10 frames a second as the application does. Both teams wore black shirts, one with red shorts and one with black.
+
+  | | Before these fixes | After |
+  | --- | --- | --- |
+  | Tracking numbers in 8 minutes | 915 | 670 |
+  | Median time a tracking number lasts | 2.1 s | 3.2 s |
+  | People given no team | 57% | 15% |
+  | Number readings that were right, judged by eye | about 24 of 64 | about 56 of 64 |
+  | Badges read as 1 or 2 | 52 of 140 readings | 5 of 67 |
+  | Players named | 8, of which 3 were right | 4, all right |
+
+  Any number from 1 to 99 was allowed, because the real squads were not available. A match sheet should do better. The thresholds were tuned on this same clip, so another match may do worse.
+- **Few players are named.** Only 4 of the 14 or so players were named in 8 minutes, all from the red-shorts team. Tracks still last about 3 seconds, and a number must be read three times by one track. Numbers on the black-shorts team were rarely legible at 720p.
+- **Reconnecting sometimes joins two people.** In a sample of 36 reconnections, 3 to 5 joined different people, and a few were too blurred to judge. Two teammates in the same kit can be joined, which no colour check can catch.
+- People at the side of the court in dark trousers can be taken for the team in black shorts.
 - A match sheet changed during analysis takes effect the next time analysis starts.
 - **Shirt roles are not yet reliable.** On three frames of a real match, in strong sun with a yellow, a dark teal and a green shirt, about two thirds of labels were right. Dark kits have little colour to go on. Votes over many frames should help, which has not been measured on live video.
 - A goalkeeper in green and yellow can be taken for an official unless they have their own colour.
 - People in the picture's bottom edge are kept only if their shirt matches, so a player cut off there with an unclear shirt can disappear for a moment.
-- Pan compensation has been tested on made-up pictures, not on the real feed that lost 65 tracking numbers in 20 seconds.
+- Pan compensation made little difference on the real match, where the camera moved slowly.
 - The court filter relies on the court being a single colour family, so it needs checking at other venues.
 - One intermittent end-to-end failure was seen once in the AI service start and stop flow and has not recurred. A real shutdown hang was fixed afterwards, but it was not confirmed as the cause.

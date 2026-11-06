@@ -78,7 +78,7 @@ export function ShirtDialog({ cameraId, shirts, sheet, onClose }: { cameraId: st
       open
       onOpenChange={(o) => !o && onClose()}
       title="Set shirt colours"
-      description="Click a shirt for each group. A goalkeeper in a different colour can have their own."
+      description="Click a shirt for each group. A goalkeeper in a different colour can have their own. If both teams wear the same shirts, click their shorts as well."
       size="xl"
       footer={
         <>

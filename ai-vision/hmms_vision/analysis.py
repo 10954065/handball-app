@@ -17,7 +17,7 @@ from .camera import CameraWorker
 from .detector import Detections
 from .court import FRAME_EDGE, court_mask, on_court
 from .numbers import NumberVotes, NumberWorker
-from .roles import RoleAssigner
+from .roles import RoleAssigner, kit_look
 from .tracker import Tracker, pan_shift, small_grey
 
 log = logging.getLogger(__name__)
@@ -122,7 +122,8 @@ class AnalysisWorker:
         grey = small_grey(image)
         shift = pan_shift(state.previous, grey, image.shape[1]) if state.previous is not None and state.previous.shape == grey.shape else (0.0, 0.0)
         state.previous = grey
-        tracks = state.tracker.update(detections.boxes, detections.scores, shift)
+        looks = np.array([kit_look(image, b) for b in detections.boxes], np.float32).reshape(-1, 4)
+        tracks = state.tracker.update(detections.boxes, detections.scores, shift, looks)
         roles = state.roles
         for track in tracks:
             roles.observe(image, track.id, track.box)

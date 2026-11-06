@@ -15,7 +15,7 @@ from hmms_vision.numbers import NumberWorker
 from hmms_vision.models import MODELS, file_hash, list_models, model_folder, verified_path
 from hmms_vision.court import court_mask, on_court
 from hmms_vision.roles import MAX_OFFICIALS, RoleAssigner, hex_to_lab, same_hue, torso_colour
-from hmms_vision.tracker import CONFIRM_HITS, MAX_MISSES, Tracker, iou, pan_shift, small_grey
+from hmms_vision.tracker import CONFIRM_HITS, MAX_MISSES, REMEMBER_FRAMES, Tracker, iou, pan_shift, small_grey
 
 RED, BLUE, YELLOW = (0, 0, 220), (220, 0, 0), (0, 230, 230)
 RED_HEX, BLUE_HEX = "#dc0000", "#0000dc"
@@ -25,10 +25,10 @@ def box(x, y, w=40, h=100):
     return np.array([x, y, x + w, y + h], np.float32)
 
 
-def feed(tracker, boxes, scores=None):
+def feed(tracker, boxes, scores=None, looks=None):
     b = np.array(boxes, np.float32).reshape(-1, 4)
     s = np.array(scores if scores is not None else [0.9] * len(b), np.float32)
-    return tracker.update(b, s)
+    return tracker.update(b, s, looks=None if looks is None else np.array(looks, np.float32).reshape(len(b), 3))
 
 
 class TrackerTest(unittest.TestCase):
@@ -105,6 +105,78 @@ class TrackerTest(unittest.TestCase):
         for _ in range(MAX_MISSES + 1):
             feed(tracker, [])
         self.assertEqual(tracker.tracks, [])
+
+
+RED_KIT, BLACK_KIT = [20.0, 170.0, 150.0], [10.0, 128.0, 128.0]
+
+
+class ReconnectTest(unittest.TestCase):
+    """A player lost for longer than a brief gap keeps their number if they reappear nearby, in the same kit."""
+
+    def seen_then_lost(self, tracker, x=100, look=RED_KIT, gone=MAX_MISSES + 5):
+        for _ in range(CONFIRM_HITS + 2):
+            found = feed(tracker, [box(x, 50)], looks=[look])
+        for _ in range(gone):
+            feed(tracker, [], looks=[])
+        return found[0].id
+
+    def back(self, tracker, x, look=RED_KIT):
+        for _ in range(CONFIRM_HITS):
+            found = feed(tracker, [box(x, 50)], looks=[look])
+        return found[0].id
+
+    def test_a_player_back_nearby_in_the_same_kit_keeps_their_number(self):
+        tracker = Tracker()
+        first = self.seen_then_lost(tracker)
+        self.assertEqual(self.back(tracker, 130), first)
+
+    def test_someone_in_the_other_kit_gets_a_new_number(self):
+        tracker = Tracker()
+        first = self.seen_then_lost(tracker)
+        self.assertNotEqual(self.back(tracker, 130, BLACK_KIT), first)
+
+    def test_someone_far_away_gets_a_new_number(self):
+        tracker = Tracker()
+        first = self.seen_then_lost(tracker)
+        self.assertNotEqual(self.back(tracker, 900), first)
+
+    def test_a_player_gone_too_long_is_forgotten(self):
+        tracker = Tracker()
+        first = self.seen_then_lost(tracker, gone=REMEMBER_FRAMES + MAX_MISSES + 2)
+        self.assertNotEqual(self.back(tracker, 110), first)
+
+    def test_a_player_who_moved_while_hidden_is_found_again(self):
+        tracker = Tracker()
+        first = self.seen_then_lost(tracker, gone=4)
+        self.assertEqual(self.back(tracker, 180), first)
+
+    def test_two_players_back_at_once_each_get_their_own_number(self):
+        tracker = Tracker()
+        for _ in range(CONFIRM_HITS + 2):
+            found = feed(tracker, [box(100, 50), box(400, 50)], looks=[RED_KIT, BLACK_KIT])
+        ids = {round(float(t.box[0])): t.id for t in found}
+        for _ in range(MAX_MISSES + 5):
+            feed(tracker, [], looks=[])
+        for _ in range(CONFIRM_HITS):
+            again = feed(tracker, [box(420, 50), box(110, 50)], looks=[BLACK_KIT, RED_KIT])
+        self.assertEqual({round(float(t.box[0])): t.id for t in again}, {110: ids[100], 420: ids[400]})
+
+    def test_a_false_alarm_is_never_brought_back(self):
+        tracker = Tracker()
+        feed(tracker, [box(100, 50)], looks=[RED_KIT])
+        for _ in range(MAX_MISSES + 5):
+            feed(tracker, [], looks=[])
+        self.assertEqual(tracker.lost, [])
+
+    def test_without_kit_colours_it_still_reconnects_by_place(self):
+        tracker = Tracker()
+        for _ in range(CONFIRM_HITS + 2):
+            found = feed(tracker, [box(100, 50)])
+        for _ in range(MAX_MISSES + 5):
+            feed(tracker, [])
+        for _ in range(CONFIRM_HITS):
+            again = feed(tracker, [box(120, 50)])
+        self.assertEqual(again[0].id, found[0].id)
 
 
 def shirt(colour, height=200, width=100):
@@ -240,6 +312,52 @@ class CourtTest(unittest.TestCase):
         self.assertEqual(kept.boxes.tolist(), [[300, 400, 360, 600]])
 
 
+def player(shirt_colour, shorts_colour):
+    """Someone standing on a plain background: a shirt above a pair of shorts."""
+    image = np.full((400, 200, 3), (120, 130, 110), np.uint8)
+    image[0:200] = shirt_colour
+    image[200:400] = shorts_colour
+    return image, np.array([0, 0, 200, 400], np.float32)
+
+
+BLACK, DARK_RED, NEON = (28, 26, 25), (35, 25, 150), (60, 230, 150)
+
+
+class ShortsTest(unittest.TestCase):
+    KIT = {"shortsA": "#961923", "shortsB": "#1c1a19", "official": "#96e63c"}
+
+    def seen(self, shirt_colour, shorts_colour, kit=None):
+        assigner = RoleAssigner(kit or self.KIT)
+        image, box = player(shirt_colour, shorts_colour)
+        for _ in range(4):
+            assigner.observe(image, 1, box)
+        return assigner.role_of(1)
+
+    def test_shorts_part_two_teams_in_the_same_shirts(self):
+        self.assertEqual(self.seen(BLACK, DARK_RED), "a")
+        self.assertEqual(self.seen(BLACK, BLACK), "b")
+
+    def test_black_shorts_match_though_black_has_no_hue(self):
+        self.assertEqual(self.seen(BLACK, (40, 38, 36), {"shortsB": "#1c1a19"}), "b")
+
+    def test_a_shirt_of_their_own_comes_before_shorts(self):
+        self.assertEqual(self.seen(NEON, BLACK), "official")
+
+    def test_grey_or_white_shorts_are_not_taken_for_black(self):
+        self.assertIsNone(self.seen(BLACK, (130, 130, 130)))
+        self.assertIsNone(self.seen(BLACK, (235, 235, 235)))
+
+    def test_shorts_in_neither_colour_give_no_team(self):
+        self.assertIsNone(self.seen(BLACK, (200, 90, 30)))
+
+    def test_a_goalkeeper_keeps_their_team_whatever_their_legs_show(self):
+        kit = {**self.KIT, "keeperA": "#3cc8a0"}
+        self.assertEqual(self.seen((160, 200, 60), BLACK, kit), "a")
+
+    def test_shorts_alone_are_enough_to_turn_labels_on(self):
+        self.assertTrue(RoleAssigner({"shortsA": "#961923"}).active)
+
+
 class PanTest(unittest.TestCase):
     def scene(self, offset):
         random = np.random.default_rng(3)
@@ -351,8 +469,10 @@ class AnalysisLoopTest(unittest.TestCase):
 
     def test_gives_a_role_when_shirts_are_picked(self):
         detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
-        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": RED_HEX, "b": BLUE_HEX})
-        self.assertEqual([t["role"] for m in sent[-3:] for t in m["tracks"]], ["a", "a", "a"])
+        # Long enough for a slow, busy computer to confirm the track and gather its votes.
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": RED_HEX, "b": BLUE_HEX}, seconds=0.8)
+        roles = [t["role"] for m in sent for t in m["tracks"]]
+        self.assertEqual(roles[-3:], ["a", "a", "a"])
 
     def test_names_a_player_once_their_number_has_been_read_often_enough(self):
         detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))

@@ -164,9 +164,9 @@ export const visionModelSchema = z.object({
 })
 export type VisionModelDTO = z.infer<typeof visionModelSchema>
 
-export const SHIRT_SLOTS = ['a', 'b', 'official', 'keeperA', 'keeperB'] as const
+export const SHIRT_SLOTS = ['a', 'b', 'official', 'keeperA', 'keeperB', 'shortsA', 'shortsB'] as const
 export type ShirtSlot = (typeof SHIRT_SLOTS)[number]
-export const SHIRT_LABELS: Record<ShirtSlot, string> = { a: 'Team A', b: 'Team B', official: 'Officials', keeperA: 'Team A goalkeeper', keeperB: 'Team B goalkeeper' }
+export const SHIRT_LABELS: Record<ShirtSlot, string> = { a: 'Team A', b: 'Team B', official: 'Officials', keeperA: 'Team A goalkeeper', keeperB: 'Team B goalkeeper', shortsA: 'Team A shorts', shortsB: 'Team B shorts' }
 export const shirtsSchema = z.partialRecord(z.enum(SHIRT_SLOTS), z.string().regex(/^#[0-9a-f]{6}$/i))
 export type ShirtsDTO = z.infer<typeof shirtsSchema>
 
@@ -192,7 +192,7 @@ export const sheetNumbers = (sheet: TeamSheetDTO) => ({ a: sheet.a.players.map((
 
 export function shirtLabels(sheet: TeamSheetDTO | null | undefined): Record<ShirtSlot, string> {
   if (!sheet) return SHIRT_LABELS
-  return { ...SHIRT_LABELS, a: sheet.a.name, b: sheet.b.name, keeperA: `${sheet.a.name} goalkeeper`, keeperB: `${sheet.b.name} goalkeeper` }
+  return { ...SHIRT_LABELS, a: sheet.a.name, b: sheet.b.name, keeperA: `${sheet.a.name} goalkeeper`, keeperB: `${sheet.b.name} goalkeeper`, shortsA: `${sheet.a.name} shorts`, shortsB: `${sheet.b.name} shorts` }
 }
 
 /** What to call someone on the picture. A name appears only when their number is on the sheet. */

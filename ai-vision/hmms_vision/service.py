@@ -16,7 +16,7 @@ from .models import MODELS, list_models, verified_path
 from .numbers import NumberReader, NumberWorker
 from .preview import PreviewPublisher
 from .protocol import Channel
-from .roles import ROLE_OF
+from .roles import SLOTS
 
 log = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class CommandError(Exception):
 def parse_shirts(shirts: Any) -> dict[str, str]:
     if shirts is None:
         return {}
-    if not isinstance(shirts, dict) or not all(slot in ROLE_OF and isinstance(c, str) and HEX_COLOUR.fullmatch(c) for slot, c in shirts.items()):
+    if not isinstance(shirts, dict) or not all(slot in SLOTS and isinstance(c, str) and HEX_COLOUR.fullmatch(c) for slot, c in shirts.items()):
         raise CommandError("Those shirt colours are not valid.")
     return shirts
 

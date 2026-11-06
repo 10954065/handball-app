@@ -12,6 +12,7 @@ from hmms_vision.numbers import (
     NumberVotes,
     NumberWorker,
     best_number,
+    digit_share,
     number_probability,
     readable_people,
 )
@@ -40,6 +41,27 @@ class NumberProbabilityTest(unittest.TestCase):
         self.assertLess(number_probability(steps, "11"), 0.1)
         self.assertGreater(number_probability(steps, "1"), 0.5)
         self.assertGreater(number_probability(spelled("11"), "11"), 0.5)
+
+
+class DigitShareTest(unittest.TestCase):
+    CLASSES = list(range(11))
+
+    def test_a_number_is_all_digits(self):
+        output = np.zeros((4, 20))
+        output[[0, 2], 2] = 1.0
+        output[[1, 3], 0] = 1.0
+        self.assertEqual(digit_share(output, self.CLASSES), 1.0)
+
+    def test_a_word_is_not_a_number(self):
+        output = np.zeros((4, 20))
+        output[:, 15] = 0.9
+        output[:, 2] = 0.1
+        self.assertLess(digit_share(output, self.CLASSES), 0.2)
+
+    def test_nothing_read_counts_as_no_digits(self):
+        output = np.zeros((4, 20))
+        output[:, 0] = 1.0
+        self.assertEqual(digit_share(output, self.CLASSES), 0.0)
 
 
 class BestNumberTest(unittest.TestCase):

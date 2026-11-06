@@ -45,6 +45,10 @@ MIN_LEAD = 2
 MIN_BOX_HEIGHT = 120.0
 #: Sharing this much of a shirt with someone else could put their number on the wrong person.
 MAX_SHIRT_OVERLAP = 0.15
+#: How much of what the model reads must be digits. Squeezed into digits, a badge or a sponsor's
+#: name reads as "1" or "2". On a real match this cut those from 52 of 140 readings to 5 of 67.
+#: A minimum text size was tried as well, and lost more real numbers than badges.
+MIN_DIGIT_SHARE = 0.8
 RETRY_S = 0.5
 FORGET_TRIED_S = 60.0
 READER_THREADS = 2
@@ -84,6 +88,16 @@ def best_number(regions: Iterable[np.ndarray], allowed: list[int]) -> int | None
         if best is None or top > best[0]:
             best = (top, top / max(top + runner_up, 1e-12), number)
     return best[2] if best and best[0] >= MIN_PROBABILITY and best[1] >= MIN_SHARE else None
+
+
+def digit_share(output: np.ndarray, digit_classes: list[int]) -> float:
+    """Of the characters the model sees, the share it takes for digits rather than letters."""
+    text = 1.0 - output[:, 0]
+    steps = text > 0.5
+    if not steps.any():
+        return 0.0
+    digits = output[:, digit_classes[1:]].sum(1)
+    return float(np.mean(digits[steps] / text[steps]))
 
 
 def shirt_area(box: np.ndarray) -> tuple[float, float, float, float]:
@@ -157,8 +171,8 @@ class NumberReader:
             regions.append(corners * np.array([width / columns, height / rows], np.float32))
         return regions
 
-    def digit_probabilities(self, region: np.ndarray) -> np.ndarray:
-        """Each step's chance of a gap or each digit. Everything else the model knows is ruled out."""
+    def digit_probabilities(self, region: np.ndarray) -> tuple[np.ndarray, float]:
+        """Each step's chance of a gap or each digit, and how much of the text was digits at all."""
         height, width = region.shape[:2]
         limit = max(READ_WIDTH, int(READ_HEIGHT * width / height))
         scaled = min(limit, math.ceil(READ_HEIGHT * width / height))
@@ -167,7 +181,7 @@ class NumberReader:
         padded[:, :, :scaled] = pixels
         output = self.recogniser.run(None, {self.recogniser.get_inputs()[0].name: padded[None]})[0][0]
         digits = output[:, self.digit_classes]
-        return digits / np.maximum(digits.sum(1, keepdims=True), 1e-9)
+        return digits / np.maximum(digits.sum(1, keepdims=True), 1e-9), digit_share(output, self.digit_classes)
 
     def read(self, image: np.ndarray, box: np.ndarray, allowed: list[int]) -> int | None:
         left, top, right, bottom = (max(int(v), 0) for v in shirt_area(box))
@@ -176,7 +190,8 @@ class NumberReader:
             return None
         large = cv2.resize(shirt, None, fx=ENLARGE, fy=ENLARGE, interpolation=cv2.INTER_CUBIC)
         cut = (straighten(large, corners) for corners in self.text_regions(large))
-        return best_number([self.digit_probabilities(region) for region in cut if region is not None], allowed)
+        read = (self.digit_probabilities(region) for region in cut if region is not None)
+        return best_number([probs for probs, share in read if share >= MIN_DIGIT_SHARE], allowed)
 
 
 class NumberVotes:
