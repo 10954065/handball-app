@@ -56,6 +56,10 @@ def open_capture(spec: CameraSpec) -> Any:
     if spec.fps:
         capture.set(cv2.CAP_PROP_FPS, spec.fps)
     capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    if spec.kind == "usb":
+        # Uncompressed video holds a 720p webcam to half speed. DirectShow ignores this unless it
+        # comes after the size and speed, and a camera without the format just keeps its own.
+        capture.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG"))
     return capture
 
 

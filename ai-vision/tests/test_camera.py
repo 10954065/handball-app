@@ -3,11 +3,12 @@ import tempfile
 import threading
 import time
 import unittest
+from unittest import mock
 
 import cv2
 import numpy as np
 
-from hmms_vision.camera import CameraSpec, CameraWorker, FAILED_READS_BEFORE_RECONNECT, discover_usb
+from hmms_vision.camera import CameraSpec, CameraWorker, FAILED_READS_BEFORE_RECONNECT, discover_usb, open_capture
 
 IMAGE = np.zeros((48, 64, 3), np.uint8)
 
@@ -191,6 +192,26 @@ class RealNetworkTest(unittest.TestCase):
         self.addCleanup(worker.stop)
         self.assertTrue(recorder.wait_for("reconnecting", timeout=12))
         self.assertIn("cannot be reached", recorder.states[-1][2])
+
+
+class OpenCaptureTest(unittest.TestCase):
+    def settings(self, spec):
+        with mock.patch("hmms_vision.camera.cv2.VideoCapture") as capture:
+            open_capture(spec)
+        return [call.args for call in capture.return_value.set.call_args_list]
+
+    def test_asks_a_usb_camera_for_compressed_video_after_its_size_and_speed(self):
+        # DirectShow ignores this unless it comes after both, and a webcam then runs at half speed.
+        settings = self.settings(CameraSpec("c", "usb", 1, 1280, 720, 30))
+        names = [name for name, _ in settings]
+        self.assertIn((cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc(*"MJPG")), settings)
+        self.assertGreater(names.index(cv2.CAP_PROP_FOURCC), names.index(cv2.CAP_PROP_FRAME_WIDTH))
+        self.assertGreater(names.index(cv2.CAP_PROP_FOURCC), names.index(cv2.CAP_PROP_FPS))
+
+    def test_leaves_the_format_of_other_sources_alone(self):
+        for kind, source in (("network", "rtsp://10.0.0.5/live"), ("file", "C:/match.mp4")):
+            names = [name for name, _ in self.settings(CameraSpec("c", kind, source, 1280, 720, 30))]
+            self.assertNotIn(cv2.CAP_PROP_FOURCC, names)
 
 
 class DiscoveryTest(unittest.TestCase):
