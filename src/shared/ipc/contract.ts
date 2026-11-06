@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import type { VisionStatus } from '../vision'
 import type { ChannelDef } from './define'
 import { channel } from './define'
 import type {
@@ -85,6 +86,12 @@ export const contract = {
   'app.info': channel<AppInfo>()('public', noInput),
   'app.openDataFolder': channel<void>()('admin', noInput),
   'app.openLogFolder': channel<void>()('authenticated', noInput),
+
+  // AI Vision. Starting the service needs the same permission as running a match.
+  'vision.status': channel<VisionStatus>()('authenticated', noInput),
+  'vision.start': channel<VisionStatus>()('operate_match', noInput),
+  'vision.stop': channel<VisionStatus>()('operate_match', noInput),
+
   'app.reportError': channel<void>()(
     'public',
     z.object({ message: z.string().max(2000), stack: z.string().max(8000).nullable(), route: z.string().max(300) })
@@ -224,6 +231,8 @@ export type ChannelOutput<K extends ChannelName> = Contract[K] extends ChannelDe
 
 /** Push events from main to renderer windows. */
 export interface PushEvents {
+  /** The vision service changed state, or sent fresh health figures. */
+  'vision.status': VisionStatus
   'session.changed': { user: SessionUser | null }
   'data.reloaded': { mode: 'production' | 'demo' }
   'settings.changed': AppSettings

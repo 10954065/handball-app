@@ -10,6 +10,7 @@ import { adminHandlers } from './ipc/handlers/admin'
 import { lineupHandlers } from './ipc/handlers/lineups'
 import { liveHandlers } from './ipc/handlers/live'
 import { reportHandlers } from './ipc/handlers/reports'
+import { visionHandlers } from './ipc/handlers/vision'
 import { endSession } from './recovery'
 import { ctxOf } from './restore'
 import type { Ctx } from './services/ctx'
@@ -19,6 +20,7 @@ import { liveMatchIds } from './services/matches'
 import { handleMediaProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
 import { openDataOrRecover } from './startup'
+import { vision } from './vision/instance'
 import { createMainWindow, createScoreboardWindow, hardenContents, isDev, loadScoreboard, rendererOrigins } from './windows'
 
 /** How often running match clocks are checked for the end of a period and checkpointed. */
@@ -41,6 +43,7 @@ const handlers: HandlerMap = {
   ...lineupHandlers,
   ...liveHandlers,
   ...reportHandlers,
+  ...visionHandlers,
   'live.finish': (input, rc) => {
     const out = liveHandlers['live.finish'](input, rc)
     if (getSettings(rc).backup.onMatchFinalize) void backups?.runOnce('match finalized', true)
@@ -131,7 +134,7 @@ if (!app.requestSingleInstanceLock()) {
       log.error('Could not stop running match clocks', err)
     }
     backups?.stop()
-    void backups?.runOnce('shutdown').finally(() => {
+    void Promise.allSettled([vision.stop(), backups?.runOnce('shutdown')]).finally(() => {
       try {
         ctx?.close()
         if (ctx) endSession(ctx.paths.root)

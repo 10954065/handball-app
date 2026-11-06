@@ -1,0 +1,8 @@
+# Local computer vision service for HMMS. Versions are pinned: a change here needs a new benchmark.
+# Every package is MIT, BSD or Apache-2.0. Do not add AGPL or GPL packages: HMMS ships them.
+numpy==2.4.6
+opencv-python-headless==5.0.0.93
+onnxruntime-directml==1.24.4
+psutil==7.2.2
+pygrabber==0.2
+comtypes==1.4.17

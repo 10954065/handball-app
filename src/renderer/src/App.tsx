@@ -28,6 +28,7 @@ import { PlayersPage } from '@/pages/players'
 import { PlayerDetailPage } from '@/pages/players/detail'
 import { TeamsPage } from '@/pages/teams'
 import { TeamDetailPage } from '@/pages/teams/detail'
+import { VisionPage } from '@/pages/vision'
 
 const SECTIONS: Record<string, { path: string; element: React.ReactNode }[]> = {
   '/live': [
@@ -36,6 +37,7 @@ const SECTIONS: Record<string, { path: string; element: React.ReactNode }[]> = {
   ],
   '/settings': [{ path: 'settings', element: <SettingsPage /> }],
   '/help': [{ path: 'help', element: <HelpPage /> }],
+  '/vision': [{ path: 'vision', element: <VisionPage /> }],
   '/teams': [
     { path: 'teams', element: <TeamsPage /> },
     { path: 'teams/:id', element: <TeamDetailPage /> }

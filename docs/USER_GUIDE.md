@@ -26,6 +26,7 @@ On the sign-in screen, choose **Explore demonstration mode**. It opens a separat
 | --- | --- |
 | Dashboard | Live and upcoming matches, recent results, standings and top scorers |
 | Live Match Centre | Run a match. The Match operator guide explains this |
+| AI Vision | Camera analysis that suggests events for an official to confirm |
 | Matches | Create fixtures and prepare match sheets |
 | Competitions | Leagues, groups, knockouts, tables and brackets |
 | Teams | Team records, colours, logos and squads |

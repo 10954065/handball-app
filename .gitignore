@@ -30,3 +30,9 @@ CLAUDE.local.md
 AGENTS.md
 .serena/
 test-results/
+
+# computer vision service
+ai-vision/.venv/
+ai-vision/models/
+__pycache__/
+*.pyc

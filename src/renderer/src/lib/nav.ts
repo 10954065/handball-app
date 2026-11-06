@@ -6,6 +6,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   RadioTower,
+  ScanEye,
   Settings,
   Shield,
   Shirt,
@@ -23,6 +24,7 @@ export interface NavItem {
 export const NAV: NavItem[] = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/live', label: 'Live Match Centre', icon: RadioTower },
+  { to: '/vision', label: 'AI Vision', icon: ScanEye },
   { to: '/matches', label: 'Matches', icon: CalendarDays },
   { to: '/competitions', label: 'Competitions', icon: Trophy },
   { to: '/teams', label: 'Teams', icon: Shield },
