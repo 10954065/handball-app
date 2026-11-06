@@ -523,33 +523,6 @@ export const cameraDevices = sqliteTable('camera_devices', {
   updatedAt: updatedAt()
 })
 
-/**
- * What the AI thinks happened. Kept apart from match_events on purpose: nothing here counts towards
- * a score or a statistic until an official confirms it and the match engine records an event.
- */
-export const aiEventSuggestions = sqliteTable('ai_event_suggestions', {
-  id: id(),
-  matchId: text('match_id').notNull().references(() => matches.id, { onDelete: 'cascade' }),
-  category: text('category', { enum: ['goal', 'shot', 'save'] }).notNull(),
-  side: text('side', { enum: ['home', 'away'] }),
-  rosterId: text('roster_id').references(() => matchRosters.id, { onDelete: 'set null' }),
-  jersey: integer('jersey'),
-  trackId: integer('track_id'),
-  confidence: real('confidence').notNull(),
-  cameraId: text('camera_id').references(() => cameraDevices.id, { onDelete: 'set null' }),
-  periodSeq: integer('period_seq').notNull(),
-  matchMs: integer('match_ms').notNull(),
-  evidence: text('evidence', { mode: 'json' }),
-  status: text('status', { enum: ['pending', 'confirmed', 'rejected', 'corrected', 'expired'] }).notNull().default('pending'),
-  eventId: text('event_id').references(() => matchEvents.id, { onDelete: 'set null' }),
-  /** What the official changed. The columns above keep what the AI said. */
-  correction: text('correction', { mode: 'json' }),
-  reason: text('reason'),
-  decidedBy: text('decided_by'),
-  decidedAt: integer('decided_at'),
-  createdAt: createdAt()
-}, (t) => [index('ai_suggestions_match_idx').on(t.matchId, t.status)])
-
 export const backupHistory = sqliteTable('backup_history', {
   id: id(),
   kind: text('kind', { enum: ['auto', 'manual', 'pre_restore', 'pre_update', 'external'] }).notNull(),

@@ -5,8 +5,7 @@ import { usbDevicesSchema, visionModelSchema, type UsbDevice } from '@shared/vis
 import { cameraSpec, createCamera, deleteCamera, listCameras, updateCamera } from '../../services/cameras'
 import type { Ctx } from '../../services/ctx'
 import { matchColours } from '../../services/matches'
-import { confirmSuggestion, listSuggestions, rejectSuggestion } from '../../services/suggestions'
-import { feeds, secrets, suggestions, vision } from '../../vision/instance'
+import { feeds, secrets, vision } from '../../vision/instance'
 import type { HandlerMap } from '../types'
 
 const VIDEO_EXTENSIONS = ['mp4', 'mkv', 'avi', 'mov', 'webm']
@@ -43,7 +42,6 @@ export const visionHandlers = {
   'vision.analysis': () => feeds.analysis(),
   'vision.startAnalysis': async ({ matchId, rate }, ctx) => {
     await ensureRunning()
-    suggestions.matchId = matchId
     await vision.request('analysis.start', { rate, colours: matchId ? matchColours(ctx, matchId) : null })
   },
   'vision.stopAnalysis': async () => {
@@ -55,17 +53,6 @@ export const visionHandlers = {
   'vision.models': async () => {
     await ensureRunning()
     return z.array(visionModelSchema).parse(await vision.request('models.list'))
-  },
-  'suggestions.list': ({ matchId, status }, ctx) => listSuggestions(ctx, matchId, status),
-  'suggestions.confirm': (input, ctx) => {
-    const live = confirmSuggestion(ctx, input)
-    ctx.app.broadcast('live.changed', { matchId: live.match.id })
-    ctx.app.broadcast('suggestions.changed', { matchId: live.match.id })
-    return live
-  },
-  'suggestions.reject': (input, ctx) => {
-    const { matchId } = rejectSuggestion(ctx, input)
-    ctx.app.broadcast('suggestions.changed', { matchId })
   },
   'cameras.list': (_i, ctx) => listCameras(ctx),
   'cameras.create': (input, ctx) => createCamera(ctx, secrets, input),

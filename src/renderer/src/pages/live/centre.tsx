@@ -13,7 +13,6 @@ import { abilities, ActionPanel, type EntryState, type Selection } from './actio
 import { MISSES, PLAYS } from './action-parts'
 import { LiveModals, type Modal } from './centre-support'
 import { RecoveryDialog } from './dialogs'
-import { ReviewQueue } from './review-queue'
 import { NoticeStack, useNotices } from './notices'
 import { Scorebar } from './scorebar'
 import { TeamBoard } from './team-board'
@@ -211,7 +210,6 @@ function MatchCentre({ live }: { live: LiveMatchDTO }) {
               typed={typed}
             />
           )}
-            {operator && live.match.status === 'live' && <ReviewQueue live={live} />}
             <Timeline live={live} onEdit={(event) => setModal({ kind: 'edit', event })} onVoid={(event) => setModal({ kind: 'void', event })} />
           </div>
           <NoticeStack items={notices.items} onDismiss={notices.dismiss} />

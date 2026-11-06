@@ -150,8 +150,7 @@ describe('camera feeds', () => {
     const changes: CameraFeedDTO[][] = []
     const analysis: AnalysisDTO[] = []
     const tracks: CameraTracksDTO[] = []
-    const found: string[] = []
-    return { found, feeds: new CameraFeeds(send, { onFeeds: (s) => changes.push(s), onAnalysis: (a) => analysis.push(a), onTracks: (t) => tracks.push(t), onSuggestion: (x) => found.push(x.category) }), send, changes, analysis, tracks }
+    return { feeds: new CameraFeeds(send, { onFeeds: (s) => changes.push(s), onAnalysis: (a) => analysis.push(a), onTracks: (t) => tracks.push(t) }), send, changes, analysis, tracks }
   }
 
   it('shows a camera as connecting as soon as it is opened', async () => {
@@ -262,15 +261,6 @@ describe('camera feeds', () => {
     feeds.onEvent({ type: 'analysis', state: 'running', message: null, backend: 'Processor' }, Buffer.alloc(0))
     feeds.onServiceState('failed')
     expect(feeds.analysis().state).toBe('stopped')
-  })
-
-  it('passes on a well-formed suggestion, and drops a malformed one', () => {
-    const { feeds, found } = make()
-    const suggestion = { type: 'suggestion', category: 'goal', side: 'home', jersey: 9, trackId: 1, confidence: 0.7, camera: ID, ageMs: 500, evidence: null }
-    feeds.onEvent(suggestion, Buffer.alloc(0))
-    feeds.onEvent({ ...suggestion, confidence: 7 }, Buffer.alloc(0))
-    feeds.onEvent({ ...suggestion, category: 'red_card' }, Buffer.alloc(0))
-    expect(found).toEqual(['goal'])
   })
 
   it('reports a camera the service refused', async () => {
