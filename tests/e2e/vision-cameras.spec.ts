@@ -160,6 +160,15 @@ test.describe('with the real model', () => {
     await page.getByRole('button', { name: 'Open', exact: true }).click()
     await expect(page.getByLabel('Camera People').getByText('Live', { exact: true })).toBeVisible({ timeout: 20_000 })
 
+    await page.getByRole('button', { name: 'Set shirt colours' }).click()
+    const picture = page.getByLabel('Paused picture. Click a shirt.')
+    await expect(picture).toBeVisible()
+    await picture.click({ position: { x: 200, y: 100 } })
+    await expect(page.getByRole('button', { name: 'Team B', exact: true })).toHaveAttribute('aria-pressed', 'true')
+    await page.getByRole('button', { name: 'Clear all' }).click()
+    await page.getByRole('button', { name: 'Save colours' }).click()
+    await expect(page.getByRole('dialog')).toBeHidden()
+
     await page.getByRole('button', { name: 'Start analysis' }).click()
     await expect(page.getByText('Analysing', { exact: true })).toBeVisible({ timeout: 30_000 })
     await expect(page.getByText('Graphics card')).toBeVisible()

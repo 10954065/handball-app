@@ -1,6 +1,7 @@
 import json
 import logging
 import platform
+import re
 import threading
 from collections.abc import Callable, Iterable
 from typing import Any
@@ -14,6 +15,7 @@ from .detector import Detector
 from .models import MODELS, list_models, verified_path
 from .preview import PreviewPublisher
 from .protocol import Channel
+from .roles import ROLE_OF
 
 log = logging.getLogger(__name__)
 
@@ -22,10 +24,19 @@ MAX_CAMERAS = 3
 DEFAULT_MODEL = "yolox_s"
 DEFAULT_RATE = 10.0
 MAX_RATE = 30.0
+HEX_COLOUR = re.compile(r"#[0-9a-fA-F]{6}")
 
 
 class CommandError(Exception):
     """A failure the operator should read. Anything else is reported as an internal error."""
+
+
+def parse_shirts(shirts: Any) -> dict[str, str]:
+    if shirts is None:
+        return {}
+    if not isinstance(shirts, dict) or not all(slot in ROLE_OF and isinstance(c, str) and HEX_COLOUR.fullmatch(c) for slot, c in shirts.items()):
+        raise CommandError("Those shirt colours are not valid.")
+    return shirts
 
 
 class Service:
@@ -47,6 +58,7 @@ class Service:
             "analysis.start": self.start_analysis,
             "analysis.stop": lambda _args: self.stop_analysis(),
             "analysis.pause": self.pause_analysis,
+            "analysis.shirts": self.set_shirts,
         }
 
     def health(self) -> dict:
@@ -106,7 +118,7 @@ class Service:
         key = args.get("model") or DEFAULT_MODEL
         rate = args.get("rate") or DEFAULT_RATE
         device = args.get("device") or 0
-        colours = args.get("colours")
+        shirts = parse_shirts(args.get("shirts"))
         if key not in MODELS or not isinstance(rate, int | float) or not 0 < rate <= MAX_RATE or not isinstance(device, int):
             raise CommandError("Those analysis settings are not valid.")
         path = verified_path(key)
@@ -114,11 +126,11 @@ class Service:
             raise CommandError(f"The {MODELS[key].name} model is not installed.")
         self.stop_analysis()
         # Loading takes seconds. On this thread it would stop the service answering health checks.
-        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, colours), name="model-load", daemon=True).start()
+        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, shirts), name="model-load", daemon=True).start()
         self.on_analysis_state("loading")
         return {}
 
-    def load_and_run(self, key: str, device: int, path: Any, rate: float, colours: dict | None) -> None:
+    def load_and_run(self, key: str, device: int, path: Any, rate: float, shirts: dict[str, str]) -> None:
         try:
             if self.detector is None or self.detector[:2] != (key, device):
                 detector = Detector(path, MODELS[key].input_size, device)
@@ -129,7 +141,7 @@ class Service:
             log.exception("Could not load the model")
             self.on_analysis_state("failed", "The model could not be loaded. Details are in the log folder.")
             return
-        self.analysis = AnalysisWorker(detector.detect, lambda: list(self.cameras.values()), self.channel.send, rate, colours, lambda message: self.on_analysis_state("failed", message))
+        self.analysis = AnalysisWorker(detector.detect, lambda: list(self.cameras.values()), self.channel.send, rate, shirts, lambda message: self.on_analysis_state("failed", message))
         self.analysis.start()
         self.on_analysis_state("running", backend=detector.backend)
 
@@ -138,6 +150,11 @@ class Service:
             self.analysis.stop()
             self.analysis = None
             self.on_analysis_state("stopped")
+        return {}
+
+    def set_shirts(self, args: dict) -> dict:
+        if self.analysis is not None:
+            self.analysis.set_shirts(parse_shirts(args.get("shirts")))
         return {}
 
     def pause_analysis(self, args: dict) -> dict:

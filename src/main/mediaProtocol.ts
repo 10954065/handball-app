@@ -10,7 +10,8 @@ const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 /** Must run before app.whenReady(). */
 export function registerMediaScheme(): void {
   const privileges = { standard: true, secure: true, supportFetchAPI: true }
-  protocol.registerSchemesAsPrivileged([{ scheme: MEDIA_SCHEME, privileges }, { scheme: VISION_SCHEME, privileges }])
+  // The shirt picker reads pixels from a camera's picture, which needs a CORS-readable response.
+  protocol.registerSchemesAsPrivileged([{ scheme: MEDIA_SCHEME, privileges }, { scheme: VISION_SCHEME, privileges: { ...privileges, corsEnabled: true } }])
 }
 
 /** Serve a camera's newest picture: hmms-vision://frame/<uuid>. Only to a signed-in user. */
@@ -19,7 +20,7 @@ export function handleVisionProtocol(app: AppContext, feeds: CameraFeeds): void 
     const id = new URL(req.url).pathname.replace(/^\//, '')
     const jpeg = app.session && ID.test(id) ? feeds.latest(id) : null
     if (!jpeg) return new Response('Not found', { status: 404 })
-    return new Response(new Uint8Array(jpeg), { headers: { 'content-type': 'image/jpeg', 'cache-control': 'no-store' } })
+    return new Response(new Uint8Array(jpeg), { headers: { 'content-type': 'image/jpeg', 'cache-control': 'no-store', 'access-control-allow-origin': '*' } })
   })
 }
 

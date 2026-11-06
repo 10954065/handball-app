@@ -175,7 +175,7 @@ class RealPipeline(unittest.TestCase):
         service = Service(Channel(out))
         self.addCleanup(service.close_all)
         service.cameras["a"] = StillCamera(cv2.imread(str(model_folder() / "people-sample.jpg")))
-        service.start_analysis({"rate": 10, "colours": {"home": "#ff0000", "away": "#0000ff"}})
+        service.start_analysis({"rate": 10})
         deadline = time.monotonic() + 30
         tracks = []
         while time.monotonic() < deadline and not tracks:

@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { Pause, Play, Square } from 'lucide-react'
+import { Pause, Play, Shirt, Square } from 'lucide-react'
 import type { AnalysisState, CameraTracksDTO, TrackDTO } from '@shared/vision'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Select } from '@/components/ui/input'
 import { Panel, PanelHeader } from '@/components/ui/misc'
 import { Switch } from '@/components/ui/switch'
 import { subscribe } from '@/lib/api'
 import { useApi, useApiMutation } from '@/lib/query'
 import { useSession } from '@/lib/session'
+import { ShirtDialog, ShirtSwatches } from './shirts'
 
 export interface OverlayOptions {
   boxes: boolean
   ids: boolean
-  teams: boolean
+  roles: boolean
 }
 
 const STATE_LABEL: Record<AnalysisState, { text: string; tone: 'neutral' | 'success' | 'warning' | 'danger' }> = {
@@ -25,7 +25,8 @@ const STATE_LABEL: Record<AnalysisState, { text: string; tone: 'neutral' | 'succ
   failed: { text: 'Stopped by a fault', tone: 'danger' }
 }
 
-const TEAM_COLOUR: Record<'home' | 'away' | 'unknown', string> = { home: 'var(--chart-home)', away: 'var(--chart-away)', unknown: 'var(--text-muted)' }
+const ROLE_COLOUR: Record<'a' | 'b' | 'official' | 'unknown', string> = { a: 'var(--chart-home)', b: 'var(--chart-away)', official: 'var(--gold)', unknown: 'var(--text-muted)' }
+const ROLE_LABEL: Record<'a' | 'b' | 'official', string> = { a: 'Team A', b: 'Team B', official: 'Official' }
 
 /** Tracks per camera, kept outside the query cache because they arrive many times a second. */
 export function useTracks(): Map<string, CameraTracksDTO> {
@@ -36,7 +37,7 @@ export function useTracks(): Map<string, CameraTracksDTO> {
 
 function trackLabel(track: TrackDTO, options: OverlayOptions): string {
   const parts = options.ids ? [`#T${track.id}`] : []
-  if (options.teams) parts.push(track.team ? `${track.team === 'home' ? 'Home' : 'Away'}?` : 'Team unknown')
+  if (options.roles) parts.push(track.role ? ROLE_LABEL[track.role] : 'Player')
   return parts.join(' ')
 }
 
@@ -46,7 +47,7 @@ export function TrackOverlay({ data, options }: { data: CameraTracksDTO | undefi
   return (
     <svg viewBox={`0 0 ${data.width} ${data.height}`} preserveAspectRatio="xMidYMid meet" className="pointer-events-none absolute inset-0 size-full" role="img" aria-label={`${data.tracks.length} players tracked`}>
       {data.tracks.map((t) => {
-        const colour = TEAM_COLOUR[options.teams ? (t.team ?? 'unknown') : 'unknown']
+        const colour = ROLE_COLOUR[options.roles ? (t.role ?? 'unknown') : 'unknown']
         const label = trackLabel(t, options)
         return (
           <g key={t.id}>
@@ -70,11 +71,11 @@ function useAnalysis() {
   return analysis.data
 }
 
-export function AnalysisPanel({ options, onOptions }: { options: OverlayOptions; onOptions: (o: OverlayOptions) => void }) {
+export function AnalysisPanel({ options, onOptions, cameraId }: { options: OverlayOptions; onOptions: (o: OverlayOptions) => void; cameraId: string | null }) {
   const { can } = useSession()
   const analysis = useAnalysis()
-  const matches = useApi('matches.list', { status: ['ready', 'live'], limit: 50 })
-  const [matchId, setMatchId] = useState('')
+  const shirts = useApi('vision.shirts', undefined, { staleTime: 0 })
+  const [picking, setPicking] = useState(false)
   const start = useApiMutation('vision.startAnalysis')
   const stop = useApiMutation('vision.stopAnalysis')
   const pause = useApiMutation('vision.pauseAnalysis')
@@ -85,21 +86,19 @@ export function AnalysisPanel({ options, onOptions }: { options: OverlayOptions;
     ['Running on', analysis?.backend ?? 'Not running'],
     ['Analysis speed', state === 'running' ? `${analysis?.fps ?? 0} frames a second` : 'Not running'],
     ['Time per frame', state === 'running' ? `${analysis?.inferenceMs ?? 0} ms` : 'Not running'],
-    ['Players tracked', state === 'running' ? String(analysis?.tracked ?? 0) : 'Not running'],
+    ['People followed', state === 'running' ? String(analysis?.tracked ?? 0) : 'Not running'],
     ['Frames skipped', String(analysis?.dropped ?? 0)]
   ]
   const toggle = (key: keyof OverlayOptions) => (checked: boolean) => onOptions({ ...options, [key]: checked })
 
   return (
     <Panel className="mt-5">
-      <PanelHeader title="Analysis" subtitle="Pausing or stopping this never affects the match clock." actions={<Badge tone={label.tone}>{label.text}</Badge>} />
+      <PanelHeader title="Analysis" subtitle="Follows the players and the two officials. It never affects the match clock." actions={<Badge tone={label.tone}>{label.text}</Badge>} />
       {analysis?.message && <p className="border-b border-border px-5 py-3 text-sm">{analysis.message}</p>}
       {can('operate_match') && (
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-5 py-3">
-          <Select aria-label="Match" className="w-72" value={matchId} disabled={active} onChange={(e) => setMatchId(e.target.value)}>
-            <option value="">No match (no team estimate)</option>
-            {matches.data?.map((m) => <option key={m.id} value={m.id}>{m.home.name} v {m.away.name}</option>)}
-          </Select>
+          <Button size="sm" variant="secondary" disabled={cameraId === null} onClick={() => setPicking(true)}><Shirt /> Set shirt colours</Button>
+          <ShirtSwatches shirts={shirts.data ?? {}} />
           {active ? (
             <>
               <Button size="sm" variant="secondary" loading={pause.isPending} disabled={state === 'loading'} onClick={() => pause.mutate({ paused: state === 'running' })}>
@@ -108,7 +107,7 @@ export function AnalysisPanel({ options, onOptions }: { options: OverlayOptions;
               <Button size="sm" variant="secondary" loading={stop.isPending} onClick={() => stop.mutate(undefined)}><Square /> Stop analysis</Button>
             </>
           ) : (
-            <Button size="sm" loading={start.isPending} onClick={() => start.mutate({ matchId: matchId || null, rate: 10 })}><Play /> Start analysis</Button>
+            <Button size="sm" loading={start.isPending} onClick={() => start.mutate({ rate: 10 })}><Play /> Start analysis</Button>
           )}
         </div>
       )}
@@ -123,8 +122,9 @@ export function AnalysisPanel({ options, onOptions }: { options: OverlayOptions;
       <div className="flex flex-wrap gap-6 px-5 py-3">
         <Switch checked={options.boxes} onCheckedChange={toggle('boxes')} label="Player boxes" />
         <Switch checked={options.ids} onCheckedChange={toggle('ids')} label="Tracking numbers" />
-        <Switch checked={options.teams} onCheckedChange={toggle('teams')} label="Team estimate" />
+        <Switch checked={options.roles} onCheckedChange={toggle('roles')} label="Team and official labels" />
       </div>
+      {picking && cameraId && <ShirtDialog cameraId={cameraId} shirts={shirts.data ?? {}} onClose={() => setPicking(false)} />}
     </Panel>
   )
 }

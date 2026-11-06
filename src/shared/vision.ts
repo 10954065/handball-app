@@ -115,7 +115,7 @@ export const analysisEventSchema = z.object({
   backend: z.string().max(40).nullable()
 })
 
-/** A tracking number is a temporary identity. It is never a player, and team is only an estimate. */
+/** A tracking number is a temporary identity. It is never a player. Role comes from the shirt. */
 export const trackSchema = z.object({
   id: z.number(),
   x: z.number(),
@@ -123,8 +123,7 @@ export const trackSchema = z.object({
   w: z.number(),
   h: z.number(),
   score: z.number(),
-  team: z.enum(['home', 'away']).nullable(),
-  teamConfidence: z.number()
+  role: z.enum(['a', 'b', 'official']).nullable()
 })
 export type TrackDTO = z.infer<typeof trackSchema>
 
@@ -158,3 +157,9 @@ export const visionModelSchema = z.object({
   installed: z.boolean()
 })
 export type VisionModelDTO = z.infer<typeof visionModelSchema>
+
+export const SHIRT_SLOTS = ['a', 'b', 'official', 'keeperA', 'keeperB'] as const
+export type ShirtSlot = (typeof SHIRT_SLOTS)[number]
+export const SHIRT_LABELS: Record<ShirtSlot, string> = { a: 'Team A', b: 'Team B', official: 'Officials', keeperA: 'Team A goalkeeper', keeperB: 'Team B goalkeeper' }
+export const shirtsSchema = z.partialRecord(z.enum(SHIRT_SLOTS), z.string().regex(/^#[0-9a-f]{6}$/i))
+export type ShirtsDTO = z.infer<typeof shirtsSchema>

@@ -44,7 +44,7 @@ export function VisionPage() {
       <PageHeader
         icon={ScanEye}
         title="AI Vision"
-        subtitle="Camera analysis that suggests events. An official confirms everything, and the match console never depends on it."
+        subtitle="Follows the players and the two officials on camera. The match console never depends on it."
         actions={
           can('operate_match') &&
           (active ? (

@@ -52,8 +52,6 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 | `app_settings` | JSON application settings. |
 | `audit_logs` | Append-only audit trail (who, what, before, after). |
 | `camera_devices` | Cameras saved for AI Vision. A USB camera is stored by name. Passwords are encrypted for the Windows account, in their own column. |
-| `camera_calibrations` | Goal areas marked by hand on each camera's picture, and which team defends which end. |
-| `ai_event_suggestions` | What the AI thinks happened, with what the official decided. Kept apart from `match_events`: nothing here counts until confirmed. |
 | `backup_history` | Every backup: kind (`auto`, `manual`, `pre_restore`, `pre_update`, `external`), path, size, SHA-256, integrity result. |
 
 ## Conventions

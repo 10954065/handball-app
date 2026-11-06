@@ -194,14 +194,6 @@ export function deleteMatch(ctx: Ctx, id: string): void {
   })
 }
 
-/** The teams' shirt colours, which let AI Vision estimate who is on which team. */
-export function matchColours(ctx: Ctx, matchId: string): { home: string; away: string } | null {
-  const match = ctx.db.select().from(matches).where(eq(matches.id, matchId)).get() ?? notFound('Match')
-  const colour = (id: string) => ctx.db.select({ c: teams.primaryColor }).from(teams).where(eq(teams.id, id)).get()?.c
-  const [home, away] = [colour(match.homeTeamId), colour(match.awayTeamId)]
-  return home && away ? { home, away } : null
-}
-
 /** Clocks, sleep protection and the scoreboard all follow the open database, so it must stay open. */
 export function assertNoLiveMatch(ctx: Ctx): void {
   if (liveMatchIds(ctx).length) throw new AppError('CONFLICT', 'A match is in progress. Finish it before opening demonstration mode.')

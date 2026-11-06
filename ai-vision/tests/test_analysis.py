@@ -12,8 +12,9 @@ from hmms_vision.analysis import AnalysisWorker
 from hmms_vision.camera import Frame
 from hmms_vision.detector import NOTHING, Detections, decode_grid, letterbox, people_from_output
 from hmms_vision.models import MODELS, file_hash, list_models, model_folder, verified_path
-from hmms_vision.teams import TeamAssigner, hex_to_lab, nearest_team, torso_colour
-from hmms_vision.tracker import CONFIRM_HITS, MAX_MISSES, Tracker, iou
+from hmms_vision.court import court_mask, on_court
+from hmms_vision.roles import MAX_OFFICIALS, RoleAssigner, hex_to_lab, same_hue, torso_colour
+from hmms_vision.tracker import CONFIRM_HITS, MAX_MISSES, Tracker, iou, pan_shift, small_grey
 
 RED, BLUE, YELLOW = (0, 0, 220), (220, 0, 0), (0, 230, 230)
 RED_HEX, BLUE_HEX = "#dc0000", "#0000dc"
@@ -115,47 +116,154 @@ def shirt(colour, height=200, width=100):
 FULL = np.array([0, 0, 100, 200], np.float32)
 
 
-class TeamTest(unittest.TestCase):
-    def setUp(self):
-        self.teams = {"home": hex_to_lab(RED_HEX), "away": hex_to_lab(BLUE_HEX)}
+SHIRTS = {"a": RED_HEX, "b": BLUE_HEX, "official": "#00c800"}
+GREEN = (0, 200, 0)
 
-    def test_reads_the_torso_colour(self):
-        self.assertLess(np.linalg.norm(torso_colour(shirt(RED), FULL) - self.teams["home"]), 8)
 
+def votes(assigner, colour, track=1, frames=4):
+    for _ in range(frames):
+        assigner.observe(shirt(colour), track, FULL)
+
+
+class RoleTest(unittest.TestCase):
     def test_a_box_too_small_gives_no_answer(self):
         self.assertIsNone(torso_colour(shirt(RED), np.array([0, 0, 4, 4], np.float32)))
 
     def test_a_box_partly_outside_the_frame_does_not_crash(self):
         self.assertIsNotNone(torso_colour(shirt(RED), np.array([-30, -30, 80, 150], np.float32)))
 
-    def test_matches_a_shirt_to_its_team(self):
-        self.assertEqual(nearest_team(torso_colour(shirt(BLUE), FULL), self.teams), "away")
+    def test_a_shirt_in_shadow_still_has_its_hue(self):
+        self.assertGreater(same_hue(hex_to_lab("#6b5a10"), hex_to_lab("#f0dc00")), 0.9)
 
-    def test_a_third_colour_belongs_to_neither_team(self):
-        self.assertIsNone(nearest_team(hex_to_lab("#101010"), {"home": hex_to_lab("#ffffff"), "away": hex_to_lab("#ffff00")}))
+    def test_a_grey_shirt_has_no_hue_to_match(self):
+        self.assertEqual(same_hue(hex_to_lab("#808080"), hex_to_lab("#f0dc00")), -1.0)
 
-    def test_similar_kits_give_no_answer_rather_than_a_guess(self):
-        teams = {"home": hex_to_lab("#dc0000"), "away": hex_to_lab("#c80a0a")}
-        self.assertIsNone(nearest_team(hex_to_lab("#d20505"), teams))
+    def test_a_dull_gold_kit_matches_a_bright_click_on_it(self):
+        assigner = RoleAssigner({"a": "#e9ca46", "b": "#010e21"})
+        for _ in range(4):
+            assigner.observe(shirt((30, 110, 130)), 1, FULL)
+        self.assertEqual(assigner.assign([1]), {1: "a"})
+
+    def test_a_white_shirt_is_not_taken_for_a_dark_one_of_the_same_tint(self):
+        assigner = RoleAssigner({"b": "#010e21"})
+        for _ in range(4):
+            assigner.observe(shirt((235, 225, 220)), 1, FULL)
+        self.assertEqual(assigner.assign([1]), {})
+
+    def test_matches_each_picked_shirt(self):
+        assigner = RoleAssigner(SHIRTS)
+        votes(assigner, RED, 1)
+        votes(assigner, BLUE, 2)
+        votes(assigner, GREEN, 3)
+        self.assertEqual(assigner.assign([1, 2, 3]), {1: "a", 2: "b", 3: "official"})
+
+    def test_leaves_out_anyone_in_another_colour(self):
+        assigner = RoleAssigner(SHIRTS)
+        votes(assigner, (240, 240, 240), 1)
+        self.assertEqual(assigner.assign([1]), {})
+
+    def test_never_keeps_more_than_two_officials(self):
+        assigner = RoleAssigner(SHIRTS)
+        for track in (1, 2, 3):
+            votes(assigner, GREEN, track)
+        self.assertEqual(len(assigner.assign([1, 2, 3])), MAX_OFFICIALS)
+
+    def test_a_goalkeeper_counts_for_their_team(self):
+        assigner = RoleAssigner({**SHIRTS, "keeperA": "#ffff00"})
+        votes(assigner, (0, 255, 255), 1)
+        self.assertEqual(assigner.assign([1]), {1: "a"})
 
     def test_needs_several_frames_before_answering(self):
-        assigner = TeamAssigner({"home": RED_HEX, "away": BLUE_HEX})
-        self.assertEqual(assigner.observe(shirt(RED), 1, FULL), (None, 0.0))
-        assigner.observe(shirt(RED), 1, FULL)
-        self.assertEqual(assigner.observe(shirt(RED), 1, FULL), ("home", 1.0))
+        assigner = RoleAssigner(SHIRTS)
+        votes(assigner, RED, 1, frames=2)
+        self.assertEqual(assigner.assign([1]), {})
 
     def test_a_split_vote_gives_no_answer(self):
-        assigner = TeamAssigner({"home": RED_HEX, "away": BLUE_HEX})
-        for colour in (RED, BLUE, RED, BLUE, RED, BLUE):
-            result = assigner.observe(shirt(colour), 1, FULL)
-        self.assertEqual(result, (None, 0.0))
+        assigner = RoleAssigner(SHIRTS)
+        for colour in (RED, BLUE, GREEN, (240, 240, 240), RED, BLUE):
+            assigner.observe(shirt(colour), 1, FULL)
+        self.assertEqual(assigner.assign([1]), {})
+
+    def test_with_no_shirts_picked_it_is_inactive(self):
+        self.assertFalse(RoleAssigner({}).active)
+
+    def test_ignores_an_unknown_slot(self):
+        self.assertEqual(set(RoleAssigner({"a": RED_HEX, "coach": "#123456"}).shirts), {"a"})
 
     def test_forgets_players_no_longer_tracked(self):
-        assigner = TeamAssigner({"home": RED_HEX, "away": BLUE_HEX})
-        assigner.observe(shirt(RED), 1, FULL)
-        assigner.observe(shirt(RED), 2, FULL)
+        assigner = RoleAssigner(SHIRTS)
+        votes(assigner, RED, 1)
+        votes(assigner, RED, 2)
         assigner.forget_except({2})
         self.assertEqual(set(assigner.votes), {2})
+
+
+def sports_ground():
+    """A court in two shades, a grey yard behind it, and a white line and a yellow logo on it."""
+    image = np.full((720, 1280, 3), (150, 150, 150), np.uint8)
+    image[:200] = (220, 200, 170)
+    image[300:, :640] = (150, 130, 95)
+    image[300:, 640:] = (175, 150, 110)
+    cv2.line(image, (0, 340), (1279, 340), (240, 240, 240), 4)
+    cv2.circle(image, (640, 560), 90, (40, 190, 220), -1)
+    return image
+
+
+class CourtTest(unittest.TestCase):
+    def test_someone_on_the_court_counts_in_either_shade(self):
+        mask = court_mask(sports_ground())
+        self.assertTrue(on_court(mask, 720, 1280, np.array([300, 400, 360, 600], np.float32)))
+        self.assertTrue(on_court(mask, 720, 1280, np.array([900, 400, 960, 600], np.float32)))
+
+    def test_someone_behind_the_barrier_does_not(self):
+        mask = court_mask(sports_ground())
+        self.assertFalse(on_court(mask, 720, 1280, np.array([300, 180, 340, 280], np.float32)))
+
+    def test_a_logo_on_the_court_is_still_court(self):
+        mask = court_mask(sports_ground())
+        self.assertTrue(on_court(mask, 720, 1280, np.array([620, 400, 660, 560], np.float32)))
+
+    def test_someone_cut_off_by_the_bottom_of_the_frame_counts(self):
+        self.assertTrue(on_court(np.zeros((270, 480), np.uint8), 720, 1280, np.array([300, 500, 360, 719], np.float32)))
+
+    def test_with_no_court_found_nobody_is_dropped(self):
+        self.assertTrue(on_court(None, 720, 1280, np.array([300, 400, 360, 500], np.float32)))
+
+    def test_people_are_kept_when_none_of_them_stands_on_what_looks_like_court(self):
+        detections = Detections(np.array([[300, 180, 340, 280]], np.float32), np.array([0.9], np.float32))
+        self.assertEqual(len(AnalysisWorker.on_the_court(sports_ground(), detections).boxes), 1)
+
+    def test_people_off_the_court_are_dropped_when_others_are_on_it(self):
+        boxes = np.array([[300, 180, 340, 280], [300, 400, 360, 600]], np.float32)
+        kept = AnalysisWorker.on_the_court(sports_ground(), Detections(boxes, np.array([0.9, 0.9], np.float32)))
+        self.assertEqual(kept.boxes.tolist(), [[300, 400, 360, 600]])
+
+
+class PanTest(unittest.TestCase):
+    def scene(self, offset):
+        random = np.random.default_rng(3)
+        image = cv2.resize(random.integers(0, 255, (45, 80, 3), np.uint8), (1280, 720), interpolation=cv2.INTER_CUBIC)
+        return np.roll(image, offset, axis=1)
+
+    def test_measures_how_far_the_picture_moved(self):
+        dx, dy = pan_shift(small_grey(self.scene(0)), small_grey(self.scene(40)), 1280)
+        self.assertAlmostEqual(abs(dx), 40, delta=8)
+        self.assertAlmostEqual(dy, 0, delta=8)
+
+    def test_a_still_picture_has_not_moved(self):
+        dx, dy = pan_shift(small_grey(self.scene(0)), small_grey(self.scene(0)), 1280)
+        self.assertAlmostEqual(dx, 0, delta=1)
+        self.assertAlmostEqual(dy, 0, delta=1)
+
+    def test_a_player_keeps_their_number_through_a_fast_pan(self):
+        tracker = Tracker()
+        for _ in range(4):
+            feed(tracker, [box(600, 50)])
+        ids = set()
+        for step in range(1, 8):
+            moved = np.array([box(600 - step * 90, 50)], np.float32)
+            ids |= {t.id for t in tracker.update(moved, np.array([0.9], np.float32), (-90.0, 0.0))}
+        self.assertEqual(ids, {tracker.tracks[0].id})
 
 
 class DetectorMathsTest(unittest.TestCase):
@@ -240,15 +348,25 @@ class AnalysisLoopTest(unittest.TestCase):
         self.assertEqual(last["tracks"][0]["w"], 100)
         self.assertGreater(last["fps"], 0)
 
-    def test_estimates_the_team_when_colours_are_given(self):
-        detections = Detections(np.array([[0, 0, 1280, 720]], np.float32), np.array([0.9], np.float32))
-        sent, _, _ = self.run_loop(lambda _image: detections, colours={"home": RED_HEX, "away": BLUE_HEX})
-        self.assertEqual(sent[-1]["tracks"][0]["team"], "home")
+    def test_gives_a_role_when_shirts_are_picked(self):
+        detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": RED_HEX, "b": BLUE_HEX})
+        self.assertEqual([t["role"] for m in sent[-3:] for t in m["tracks"]], ["a", "a", "a"])
 
-    def test_leaves_team_unknown_without_colours(self):
-        detections = Detections(np.array([[0, 0, 1280, 720]], np.float32), np.array([0.9], np.float32))
+    def test_keeps_everyone_on_court_without_a_role_when_no_shirts_are_picked(self):
+        detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
         sent, _, _ = self.run_loop(lambda _image: detections)
-        self.assertIsNone(sent[-1]["tracks"][0]["team"])
+        self.assertIsNone(sent[-1]["tracks"][0]["role"])
+
+    def test_keeps_someone_on_court_whose_shirt_is_unclear(self):
+        detections = Detections(np.array([[100, 100, 300, 500]], np.float32), np.array([0.9], np.float32))
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": BLUE_HEX, "b": "#00ff00"})
+        self.assertIsNone(sent[-1]["tracks"][0]["role"])
+
+    def test_leaves_out_people_in_no_picked_shirt_with_their_feet_out_of_view(self):
+        detections = Detections(np.array([[0, 0, 1280, 719]], np.float32), np.array([0.9], np.float32))
+        sent, _, _ = self.run_loop(lambda _image: detections, colours={"a": BLUE_HEX, "b": "#00ff00"})
+        self.assertEqual(sent[-1]["tracks"], [])
 
     def test_counts_frames_it_could_not_keep_up_with(self):
         camera = FakeCamera()

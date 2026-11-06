@@ -239,20 +239,20 @@ describe('camera feeds', () => {
     expect(feeds.latest(ID)).toBeNull()
   })
 
-  const trackEvent = { type: 'tracks', camera: ID, seq: 1, width: 1280, height: 720, fps: 9.5, inferenceMs: 24, dropped: 2, tracks: [{ id: 3, x: 1, y: 2, w: 3, h: 4, score: 0.9, team: 'home', teamConfidence: 0.8 }] }
+  const trackEvent = { type: 'tracks', camera: ID, seq: 1, width: 1280, height: 720, fps: 9.5, inferenceMs: 24, dropped: 2, tracks: [{ id: 3, x: 1, y: 2, w: 3, h: 4, score: 0.9, role: 'official' }] }
 
   it('passes tracks on and keeps the figures', () => {
     const { feeds, tracks, analysis } = make()
     feeds.onEvent({ type: 'analysis', state: 'running', message: null, backend: 'Graphics card' }, Buffer.alloc(0))
     feeds.onEvent(trackEvent, Buffer.alloc(0))
-    expect(tracks[0].tracks[0]).toMatchObject({ id: 3, team: 'home' })
+    expect(tracks[0].tracks[0]).toMatchObject({ id: 3, role: 'official' })
     expect(analysis.at(-1)).toMatchObject({ state: 'running', backend: 'Graphics card', fps: 9.5, inferenceMs: 24, dropped: 2, tracked: 1 })
   })
 
   it('drops track messages that do not match the expected shape', () => {
     const { feeds, tracks } = make()
     feeds.onEvent({ ...trackEvent, tracks: [{ id: 'x' }] }, Buffer.alloc(0))
-    feeds.onEvent({ ...trackEvent, tracks: [{ ...trackEvent.tracks[0], team: 'referee' }] }, Buffer.alloc(0))
+    feeds.onEvent({ ...trackEvent, tracks: [{ ...trackEvent.tracks[0], role: 'spectator' }] }, Buffer.alloc(0))
     expect(tracks).toEqual([])
   })
 

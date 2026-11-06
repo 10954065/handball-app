@@ -115,7 +115,7 @@ export function CamerasPanel() {
   const cameras = useApi('cameras.list')
   const feeds = useFeeds()
   const tracks = useTracks()
-  const [overlay, setOverlay] = useState<OverlayOptions>({ boxes: true, ids: true, teams: true })
+  const [overlay, setOverlay] = useState<OverlayOptions>({ boxes: true, ids: true, roles: true })
   const [editing, setEditing] = useState<CameraDTO | 'new' | null>(null)
   return (
     <>
@@ -142,7 +142,7 @@ export function CamerasPanel() {
           </div>
         </Panel>
       )}
-      {feeds.length > 0 && <AnalysisPanel options={overlay} onOptions={setOverlay} />}
+      {feeds.length > 0 && <AnalysisPanel options={overlay} onOptions={setOverlay} cameraId={feeds.find((f) => f.state === 'live')?.id ?? null} />}
       {editing && <CameraDialog camera={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
     </>
   )

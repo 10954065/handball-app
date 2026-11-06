@@ -43,6 +43,5 @@ export const cameraUpdateSchema = cameraFields.extend({ id: uuid, password: z.st
 
 export const cameraRef = z.object({ id: uuid })
 
-/** The match supplies the shirt colours. Without one, players are tracked but no team is estimated. */
-export const startAnalysisSchema = z.object({ matchId: uuid.nullable().default(null), rate: z.number().positive().max(30).default(10) })
+export const startAnalysisSchema = z.object({ rate: z.number().positive().max(30).default(10) })
 export const pauseAnalysisSchema = z.object({ paused: z.boolean() })

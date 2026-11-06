@@ -1,6 +1,6 @@
 import { z } from 'zod'
 import { cameraInputSchema, cameraRef, cameraUpdateSchema, pauseAnalysisSchema, startAnalysisSchema } from '../schemas/vision'
-import type { AnalysisDTO, CameraDTO, CameraFeedDTO, CameraTracksDTO, UsbDevice, VisionModelDTO, VisionStatus } from '../vision'
+import { shirtsSchema, type AnalysisDTO, type CameraDTO, type CameraFeedDTO, type CameraTracksDTO, type ShirtsDTO, type UsbDevice, type VisionModelDTO, type VisionStatus } from '../vision'
 import type { ChannelDef } from './define'
 import { channel } from './define'
 import type {
@@ -100,6 +100,8 @@ export const contract = {
   'vision.startAnalysis': channel<void>()('operate_match', startAnalysisSchema),
   'vision.stopAnalysis': channel<void>()('operate_match', noInput),
   'vision.pauseAnalysis': channel<void>()('operate_match', pauseAnalysisSchema),
+  'vision.shirts': channel<ShirtsDTO>()('authenticated', noInput),
+  'vision.setShirts': channel<void>()('operate_match', shirtsSchema),
   'vision.models': channel<VisionModelDTO[]>()('authenticated', noInput),
   'cameras.list': channel<CameraDTO[]>()('authenticated', noInput),
   'cameras.create': channel<CameraDTO>()('manage_data', cameraInputSchema),

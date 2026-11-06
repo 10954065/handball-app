@@ -9,6 +9,7 @@ probably the same person as the last one. It never says who that person is.
 
 from dataclasses import dataclass
 
+import cv2
 import numpy as np
 
 HIGH_SCORE = 0.5
@@ -19,6 +20,9 @@ CONFIRM_HITS = 3
 #: Frames a lost track survives. At 10 frames a second this is 1.5 seconds.
 MAX_MISSES = 15
 VELOCITY_SMOOTHING = 0.6
+PAN_WIDTH = 320
+#: Below this the two frames do not agree on a single movement, so nothing is assumed.
+MIN_PAN_RESPONSE = 0.1
 
 
 @dataclass
@@ -44,6 +48,21 @@ class Track:
         self.score = score
         self.hits += 1
         self.misses = 0
+
+
+def small_grey(image: np.ndarray) -> np.ndarray:
+    height, width = image.shape[:2]
+    small = cv2.resize(image, (PAN_WIDTH, max(1, round(height * PAN_WIDTH / width))), interpolation=cv2.INTER_AREA)
+    return np.float32(cv2.cvtColor(small, cv2.COLOR_BGR2GRAY))
+
+
+def pan_shift(previous: np.ndarray, current: np.ndarray, frame_width: int) -> tuple[float, float]:
+    """How far the whole picture moved between two small_grey frames, in frame pixels."""
+    (dx, dy), response = cv2.phaseCorrelate(previous, current)
+    if response < MIN_PAN_RESPONSE:
+        return 0.0, 0.0
+    scale = frame_width / PAN_WIDTH
+    return dx * scale, dy * scale
 
 
 def iou(a: np.ndarray, b: np.ndarray) -> np.ndarray:
@@ -80,7 +99,11 @@ class Tracker:
         self.tracks: list[Track] = []
         self.next_id = 1
 
-    def update(self, boxes: np.ndarray, scores: np.ndarray) -> list[Track]:
+    def update(self, boxes: np.ndarray, scores: np.ndarray, shift: tuple[float, float] = (0.0, 0.0)) -> list[Track]:
+        """shift is how far the whole picture moved, so a panning camera does not lose everyone."""
+        moved = np.array([shift[0], shift[1], shift[0], shift[1]], np.float32)
+        for track in self.tracks:
+            track.box = track.box + moved
         strong = scores >= HIGH_SCORE
         strong_boxes, strong_scores = boxes[strong], scores[strong]
         weak_boxes, weak_scores = boxes[~strong], scores[~strong]
