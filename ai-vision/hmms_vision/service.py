@@ -9,11 +9,13 @@ import psutil
 
 from . import PROTOCOL_VERSION, __version__
 from .analysis import AnalysisWorker
+from .ball_worker import BallWorker
 from .camera import KINDS, CameraSpec, CameraWorker, discover_usb
 from .detector import Detector
 from .models import MODELS, list_models, verified_path
 from .preview import PreviewPublisher
 from .protocol import Channel
+from .shots import GoalAreas
 
 log = logging.getLogger(__name__)
 
@@ -28,6 +30,24 @@ class CommandError(Exception):
     """A failure the operator should read. Anything else is reported as an internal error."""
 
 
+def parse_zone(zone: Any) -> tuple[float, float, float, float] | None:
+    if zone is None:
+        return None
+    if not isinstance(zone, list) or len(zone) != 4 or not all(isinstance(v, int | float) and 0 <= v <= 1 for v in zone) or zone[0] >= zone[2] or zone[1] >= zone[3]:
+        raise CommandError("Those goal areas are not valid.")
+    return tuple(float(v) for v in zone)
+
+
+def parse_goals(goals: Any) -> dict[str, GoalAreas]:
+    """Goal areas per camera. A camera with none gets no ball tracking."""
+    if goals is None:
+        return {}
+    try:
+        return {camera: GoalAreas(parse_zone(g.get("left")), parse_zone(g.get("right")), g.get("leftDefendedBy", "home")) for camera, g in goals.items()}
+    except AttributeError as err:
+        raise CommandError("Those goal areas are not valid.") from err
+
+
 class Service:
     def __init__(self, channel: Channel) -> None:
         self.channel = channel
@@ -36,6 +56,7 @@ class Service:
         self.preview: PreviewPublisher | None = None
         self.analysis: AnalysisWorker | None = None
         self.detector: tuple[str, int, Detector] | None = None
+        self.ball: dict[str, BallWorker] = {}
         self.commands: dict[str, Callable[[dict], Any]] = {
             "ping": lambda _args: {"pong": True},
             "health": lambda _args: self.health(),
@@ -47,6 +68,7 @@ class Service:
             "analysis.start": self.start_analysis,
             "analysis.stop": lambda _args: self.stop_analysis(),
             "analysis.pause": self.pause_analysis,
+            "analysis.goals": self.update_goals,
         }
 
     def health(self) -> dict:
@@ -89,6 +111,9 @@ class Service:
         return {}
 
     def close_camera(self, args: dict) -> dict:
+        ball = self.ball.pop(args.get("id"), None)
+        if ball is not None:
+            ball.stop()
         worker = self.cameras.pop(args.get("id"), None)
         if worker is not None:
             worker.stop()
@@ -107,6 +132,7 @@ class Service:
         rate = args.get("rate") or DEFAULT_RATE
         device = args.get("device") or 0
         colours = args.get("colours")
+        goals = parse_goals(args.get("goals"))
         if key not in MODELS or not isinstance(rate, int | float) or not 0 < rate <= MAX_RATE or not isinstance(device, int):
             raise CommandError("Those analysis settings are not valid.")
         path = verified_path(key)
@@ -114,11 +140,11 @@ class Service:
             raise CommandError(f"The {MODELS[key].name} model is not installed.")
         self.stop_analysis()
         # Loading takes seconds. On this thread it would stop the service answering health checks.
-        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, colours), name="model-load", daemon=True).start()
+        threading.Thread(target=self.load_and_run, args=(key, device, path, rate, colours, goals), name="model-load", daemon=True).start()
         self.on_analysis_state("loading")
         return {}
 
-    def load_and_run(self, key: str, device: int, path: Any, rate: float, colours: dict | None) -> None:
+    def load_and_run(self, key: str, device: int, path: Any, rate: float, colours: dict | None, goals: dict[str, GoalAreas]) -> None:
         try:
             if self.detector is None or self.detector[:2] != (key, device):
                 detector = Detector(path, MODELS[key].input_size, device)
@@ -131,9 +157,29 @@ class Service:
             return
         self.analysis = AnalysisWorker(detector.detect, lambda: list(self.cameras.values()), self.channel.send, rate, colours, lambda message: self.on_analysis_state("failed", message))
         self.analysis.start()
+        for camera_id, areas in goals.items():
+            self.start_ball_tracking(camera_id, areas)
         self.on_analysis_state("running", backend=detector.backend)
 
+    def start_ball_tracking(self, camera_id: str, areas: GoalAreas) -> None:
+        camera = self.cameras.get(camera_id)
+        analysis = self.analysis
+        if camera is None or analysis is None:
+            return
+        worker = BallWorker(camera, areas, self.channel.send, lambda: analysis.boxes.get(camera_id, []))
+        self.ball[camera_id] = worker
+        worker.start()
+
+    def update_goals(self, args: dict) -> dict:
+        """Takes effect at once, for changing ends at half time."""
+        for camera_id, areas in parse_goals(args.get("goals")).items():
+            if camera_id in self.ball:
+                self.ball[camera_id].goals = areas
+        return {}
+
     def stop_analysis(self) -> dict:
+        for camera_id in list(self.ball):
+            self.ball.pop(camera_id).stop()
         if self.analysis is not None:
             self.analysis.stop()
             self.analysis = None
@@ -143,10 +189,11 @@ class Service:
     def pause_analysis(self, args: dict) -> dict:
         if self.analysis is None:
             raise CommandError("Analysis is not running.")
-        if args.get("paused"):
-            self.analysis.paused.set()
-        else:
-            self.analysis.paused.clear()
+        for flag in [self.analysis.paused, *(ball.paused for ball in self.ball.values())]:
+            if args.get("paused"):
+                flag.set()
+            else:
+                flag.clear()
         self.on_analysis_state("paused" if args.get("paused") else "running", backend=self.detector[2].backend if self.detector else None)
         return {}
 

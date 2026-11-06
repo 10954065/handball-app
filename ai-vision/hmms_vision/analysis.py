@@ -39,6 +39,8 @@ class AnalysisWorker:
         self.colours = colours
         self.on_error = on_error
         self.state: dict[str, CameraAnalysis] = {}
+        #: Where players are on each camera, as frame fractions, so ball tracking can skip them.
+        self.boxes: dict[str, list[tuple[float, float, float, float]]] = {}
         self.paused = threading.Event()
         self.stopping = threading.Event()
         self.times: list[float] = []
@@ -72,6 +74,7 @@ class AnalysisWorker:
         self.inference_ms = round((now - started) * 1000, 1)
         self.times = [t for t in self.times if now - t < STATS_WINDOW_S] + [now]
         height, width = frame.image.shape[:2]
+        self.boxes[camera] = [(float(b[0]) / width, float(b[1]) / height, float(b[2]) / width, float(b[3]) / height) for b in detections.boxes]
         self.send({"type": "tracks", "camera": camera, "seq": frame.seq, "width": width, "height": height, "tracks": self.describe(frame.image, state, detections), "fps": self.fps(), "inferenceMs": self.inference_ms, "dropped": self.dropped})
 
     def describe(self, image: np.ndarray, state: CameraAnalysis, detections: Detections) -> list[dict[str, Any]]:

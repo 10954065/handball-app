@@ -1,10 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cameraDevices } from '../../src/main/db/schema'
 import { listAudit } from '../../src/main/services/audit'
-import { cameraSpec, createCamera, deleteCamera, listCameras, updateCamera, type Secrets } from '../../src/main/services/cameras'
+import { cameraSpec, createCamera, deleteCamera, goalAreasOf, listCameras, setGoalAreas, swapEnds, updateCamera, type Secrets } from '../../src/main/services/cameras'
 import { CameraFeeds } from '../../src/main/vision/feeds'
 import { cameraInputSchema, cameraUpdateSchema } from '../../src/shared/schemas/vision'
-import type { AnalysisDTO, CameraFeedDTO, CameraTracksDTO } from '../../src/shared/vision'
+import { goalAreasSchema, type AnalysisDTO, type CameraFeedDTO, type CameraTracksDTO } from '../../src/shared/vision'
 import { testDb, type TestDb } from './helpers'
 
 /** Reversible and visibly different from the input, as the real encryption is. */
@@ -141,6 +141,43 @@ describe('preparing a camera to open', () => {
   })
 })
 
+describe('goal areas', () => {
+  const areas = { left: [0, 0.3, 0.1, 0.6] as [number, number, number, number], right: [0.9, 0.3, 1, 0.6] as [number, number, number, number], leftDefendedBy: 'home' as const }
+
+  it('are saved with the camera and replaced when marked again', () => {
+    const cam = createCamera(t.ctx(), secrets, usb)
+    expect(listCameras(t.ctx())[0].goalAreas).toBeNull()
+    setGoalAreas(t.ctx(), cam.id, areas)
+    setGoalAreas(t.ctx(), cam.id, { ...areas, left: null })
+    expect(listCameras(t.ctx())[0].goalAreas).toMatchObject({ left: null, right: areas.right })
+  })
+
+  it('swap teams at half time and keep the marked areas', () => {
+    const cam = createCamera(t.ctx(), secrets, usb)
+    setGoalAreas(t.ctx(), cam.id, areas)
+    expect(swapEnds(t.ctx(), cam.id)).toEqual({ ...areas, leftDefendedBy: 'away' })
+    expect(goalAreasOf(t.ctx(), cam.id)?.leftDefendedBy).toBe('away')
+  })
+
+  it('cannot swap ends before any are marked', () => {
+    const cam = createCamera(t.ctx(), secrets, usb)
+    expect(() => swapEnds(t.ctx(), cam.id)).toThrow()
+  })
+
+  it('go when the camera goes', () => {
+    const cam = createCamera(t.ctx(), secrets, usb)
+    setGoalAreas(t.ctx(), cam.id, areas)
+    deleteCamera(t.ctx(), cam.id)
+    expect(goalAreasOf(t.ctx(), cam.id)).toBeNull()
+  })
+
+  it('refuse an area with no size or outside the frame', () => {
+    expect(goalAreasSchema.safeParse({ ...areas, left: [0.5, 0.5, 0.5, 0.6] }).success).toBe(false)
+    expect(goalAreasSchema.safeParse({ ...areas, left: [0, 0, 1.5, 1] }).success).toBe(false)
+    expect(goalAreasSchema.safeParse(areas).success).toBe(true)
+  })
+})
+
 describe('camera feeds', () => {
   const ID = '11111111-1111-4111-8111-111111111111'
   const spec = { id: ID, kind: 'usb' as const, source: 0, width: null, height: null, fps: null }
@@ -151,7 +188,7 @@ describe('camera feeds', () => {
     const analysis: AnalysisDTO[] = []
     const tracks: CameraTracksDTO[] = []
     const found: string[] = []
-    return { found, feeds: new CameraFeeds(send, { onFeeds: (s) => changes.push(s), onAnalysis: (a) => analysis.push(a), onTracks: (t) => tracks.push(t), onSuggestion: (x) => found.push(x.category) }), send, changes, analysis, tracks }
+    return { found, feeds: new CameraFeeds(send, { onFeeds: (s) => changes.push(s), onAnalysis: (a) => analysis.push(a), onTracks: (t) => tracks.push(t), onSuggestion: (x) => found.push(x.category), onBall: () => undefined }), send, changes, analysis, tracks }
   }
 
   it('shows a camera as connecting as soon as it is opened', async () => {

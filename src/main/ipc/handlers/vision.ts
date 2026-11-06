@@ -1,8 +1,8 @@
 import { BrowserWindow, dialog } from 'electron'
 import { AppError } from '@shared/errors'
 import { z } from 'zod'
-import { usbDevicesSchema, visionModelSchema, type UsbDevice } from '@shared/vision'
-import { cameraSpec, createCamera, deleteCamera, listCameras, updateCamera } from '../../services/cameras'
+import { usbDevicesSchema, visionModelSchema, type GoalAreasDTO, type UsbDevice } from '@shared/vision'
+import { cameraSpec, createCamera, deleteCamera, goalAreasOf, listCameras, setGoalAreas, swapEnds, updateCamera } from '../../services/cameras'
 import type { Ctx } from '../../services/ctx'
 import { matchColours } from '../../services/matches'
 import { confirmSuggestion, listSuggestions, rejectSuggestion } from '../../services/suggestions'
@@ -20,6 +20,18 @@ async function ensureRunning(): Promise<void> {
 async function usbDevices(): Promise<UsbDevice[]> {
   await ensureRunning()
   return usbDevicesSchema.parse(await vision.request('cameras.discover'))
+}
+
+/** Goal areas of the cameras now open. Without a match there is nobody to suggest a goal for. */
+function openGoalAreas(ctx: Ctx): Record<string, GoalAreasDTO> {
+  return Object.fromEntries(feeds.states().flatMap((f) => {
+    const areas = goalAreasOf(ctx, f.id)
+    return areas ? [[f.id, areas]] : []
+  }))
+}
+
+async function sendGoalAreas(id: string, goalAreas: GoalAreasDTO): Promise<void> {
+  if (vision.status().state === 'running') await vision.request('analysis.goals', { goals: { [id]: goalAreas } })
 }
 
 async function openCamera(ctx: Ctx, id: string): Promise<void> {
@@ -44,7 +56,7 @@ export const visionHandlers = {
   'vision.startAnalysis': async ({ matchId, rate }, ctx) => {
     await ensureRunning()
     suggestions.matchId = matchId
-    await vision.request('analysis.start', { rate, colours: matchId ? matchColours(ctx, matchId) : null })
+    await vision.request('analysis.start', { rate, colours: matchId ? matchColours(ctx, matchId) : null, goals: matchId ? openGoalAreas(ctx) : null })
   },
   'vision.stopAnalysis': async () => {
     await vision.request('analysis.stop')
@@ -73,6 +85,13 @@ export const visionHandlers = {
   'cameras.delete': async ({ id }, ctx) => {
     await feeds.close(id)
     deleteCamera(ctx, id)
+  },
+  'cameras.setGoalAreas': async ({ id, goalAreas }, ctx) => {
+    setGoalAreas(ctx, id, goalAreas)
+    await sendGoalAreas(id, goalAreas)
+  },
+  'cameras.swapEnds': async ({ id }, ctx) => {
+    await sendGoalAreas(id, swapEnds(ctx, id))
   },
   'cameras.chooseVideo': async (_i, ctx) => {
     const options = { title: 'Choose a match video', properties: ['openFile' as const], filters: [{ name: 'Video', extensions: VIDEO_EXTENSIONS }] }

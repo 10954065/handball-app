@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { cameraInputSchema, cameraRef, cameraUpdateSchema, confirmSuggestionSchema, listSuggestionsSchema, pauseAnalysisSchema, rejectSuggestionSchema, startAnalysisSchema } from '../schemas/vision'
-import type { AnalysisDTO, CameraDTO, CameraFeedDTO, CameraTracksDTO, SuggestionDTO, UsbDevice, VisionModelDTO, VisionStatus } from '../vision'
+import { cameraInputSchema, cameraRef, cameraUpdateSchema, confirmSuggestionSchema, listSuggestionsSchema, pauseAnalysisSchema, rejectSuggestionSchema, setGoalAreasSchema, startAnalysisSchema } from '../schemas/vision'
+import type { AnalysisDTO, BallPositionDTO, CameraDTO, CameraFeedDTO, CameraTracksDTO, SuggestionDTO, UsbDevice, VisionModelDTO, VisionStatus } from '../vision'
 import type { ChannelDef } from './define'
 import { channel } from './define'
 import type {
@@ -109,6 +109,8 @@ export const contract = {
   'cameras.update': channel<CameraDTO>()('manage_data', cameraUpdateSchema),
   'cameras.delete': channel<void>()('manage_data', cameraRef),
   'cameras.chooseVideo': channel<{ path: string } | null>()('manage_data', noInput),
+  'cameras.setGoalAreas': channel<void>()('operate_match', setGoalAreasSchema),
+  'cameras.swapEnds': channel<void>()('operate_match', cameraRef),
 
   'app.reportError': channel<void>()(
     'public',
@@ -256,6 +258,8 @@ export interface PushEvents {
   'vision.analysis': AnalysisDTO
   /** Boxes for one analysed frame. Estimates only, and they never reach the match record. */
   'vision.tracks': CameraTracksDTO
+  /** Where the ball seems to be. A marker for the screen, and nothing more. */
+  'vision.ball': BallPositionDTO
   /** The review queue of this match changed. */
   'suggestions.changed': { matchId: string }
   'session.changed': { user: SessionUser | null }
