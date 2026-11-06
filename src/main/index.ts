@@ -1,5 +1,6 @@
-import { app, BrowserWindow, dialog } from 'electron'
-import { AppContext } from './context'
+import { app, BrowserWindow, dialog, Menu, powerMonitor, powerSaveBlocker } from 'electron'
+import { release } from 'node:os'
+import type { AppContext } from './context'
 import { AutoBackupScheduler } from './autoBackup'
 import { initLogger, log } from './logger'
 import { resolvePaths } from './paths'
@@ -9,22 +10,30 @@ import { adminHandlers } from './ipc/handlers/admin'
 import { lineupHandlers } from './ipc/handlers/lineups'
 import { liveHandlers } from './ipc/handlers/live'
 import { reportHandlers } from './ipc/handlers/reports'
+import { endSession } from './recovery'
 import { ctxOf } from './restore'
 import type { Ctx } from './services/ctx'
 import { getSettings } from './services/settings'
 import { runningClocks, stopAllClocks, tickClocks, tickTimeouts } from './services/live'
+import { liveMatchIds } from './services/matches'
 import { handleMediaProtocol, registerMediaScheme } from './mediaProtocol'
 import type { HandlerMap } from './ipc/types'
-import { createMainWindow, createScoreboardWindow, hardenContents, loadScoreboard, rendererOrigins } from './windows'
+import { openDataOrRecover } from './startup'
+import { createMainWindow, createScoreboardWindow, hardenContents, isDev, loadScoreboard, rendererOrigins } from './windows'
 
 /** How often running match clocks are checked for the end of a period and checkpointed. */
 const CLOCK_TICK_MS = 250
+/** Ticks this far apart mean the computer slept, even if Windows never said so. */
+const SLEEP_GAP_MS = 30_000
 
 let ctx: AppContext | null = null
 let backups: AutoBackupScheduler | null = null
 let scoreboard: BrowserWindow | null = null
 let clockTimer: NodeJS.Timeout | null = null
+let sleepBlocker: number | null = null
+let lastTick = { wall: Date.now(), mono: performance.now() }
 let quitting = false
+let warnedOfError = false
 
 const handlers: HandlerMap = {
   ...systemHandlers,
@@ -73,36 +82,41 @@ if (!app.requestSingleInstanceLock()) {
   app.setAppUserModelId('gh.hmms.desktop')
   app.on('web-contents-created', (_e, contents) => hardenContents(contents))
 
-  process.on('uncaughtException', (err) => log.error('Uncaught exception', err))
+  process.on('uncaughtException', warnOfUnexpectedError)
   process.on('unhandledRejection', (err) => log.error('Unhandled rejection', err))
+  app.on('child-process-gone', (_e, details) => log.warn('A helper process stopped', details))
 
-  app.whenReady().then(() => {
+  void app.whenReady().then(startApplication).catch((err: unknown) => {
+    log.error('HMMS could not start', err)
+    dialog.showErrorBox('HMMS could not start', `${(err as Error).message}\n\nYour saved data has not been changed.`)
+    app.exit(1)
+  })
+
+  async function startApplication(): Promise<void> {
     const paths = resolvePaths()
     initLogger(paths.logDir)
-    log.info(`HMMS ${app.getVersion()} starting`, { userData: paths.root })
-    try {
-      ctx = new AppContext(paths, 'production')
-    } catch (err) {
-      log.error('Failed to open database', err)
-      dialog.showErrorBox(
-        'HMMS cannot open its database',
-        `${(err as Error).message}\n\nYour data has not been modified. Restore a backup from ${paths.backupDir} or contact support.`
-      )
+    log.info(`HMMS ${app.getVersion()} starting`, { userData: paths.root, windows: release(), packaged: app.isPackaged })
+    if (!isDev) Menu.setApplicationMenu(null)
+    ctx = await openDataOrRecover(paths)
+    if (!ctx) {
       app.exit(1)
       return
     }
+    // The scoreboard shows a match from the database that has just been closed.
+    ctx.onReopen(() => scoreboard?.close())
     registerIpc(ctx, handlers, rendererOrigins())
     handleMediaProtocol(ctx)
     backups = new AutoBackupScheduler(ctx)
     backups.reschedule()
     clockTimer = setInterval(tickLiveClocks, CLOCK_TICK_MS)
+    powerMonitor.on('suspend', () => stopClocksForSleep(performance.now()))
     mainWindow = createMainWindow()
     mainWindow.on('close', confirmCloseWhileClockRuns)
     mainWindow.on('closed', () => {
       mainWindow = null
       if (scoreboard && !scoreboard.isDestroyed()) scoreboard.close()
     })
-  })
+  }
 
   app.on('window-all-closed', () => app.quit())
 
@@ -120,6 +134,7 @@ if (!app.requestSingleInstanceLock()) {
     void backups?.runOnce('shutdown').finally(() => {
       try {
         ctx?.close()
+        if (ctx) endSession(ctx.paths.root)
       } catch (err) {
         log.error('Error closing database', err)
       }
@@ -144,9 +159,54 @@ function runTick(name: string, tick: (c: Ctx) => string[]): string[] {
 }
 
 function tickLiveClocks(): void {
+  const now = { wall: Date.now(), mono: performance.now() }
+  if (Math.max(now.wall - lastTick.wall, now.mono - lastTick.mono) > SLEEP_GAP_MS) stopClocksForSleep(lastTick.mono)
+  lastTick = now
   for (const matchId of new Set([...runTick('clocks', tickClocks), ...runTick('time-outs', tickTimeouts)])) {
     ctx?.broadcast('live.changed', { matchId })
   }
+  keepComputerAwake(runTick('live matches', liveMatchIds).length > 0)
+}
+
+/** The screens stay on for the whole of a live match, including breaks with the clock stopped. */
+function keepComputerAwake(awake: boolean): void {
+  if (awake && sleepBlocker === null) {
+    sleepBlocker = powerSaveBlocker.start('prevent-display-sleep')
+    log.info('A match is live: keeping the computer awake')
+  } else if (!awake && sleepBlocker !== null) {
+    powerSaveBlocker.stop(sleepBlocker)
+    sleepBlocker = null
+    log.info('No match is live: the computer may sleep again')
+  }
+}
+
+/**
+ * Sleep cannot always be prevented (a closed lid). Time asleep must not count as playing time,
+ * so the clocks stop at the given moment: now if Windows reports sleep, otherwise the last tick.
+ */
+function stopClocksForSleep(atMono: number): void {
+  if (!ctx) return
+  try {
+    for (const matchId of stopAllClocks({ ...ctxOf(ctx), mono: () => atMono }, 'The computer went to sleep')) {
+      log.warn('Stopped the match clock because the computer went to sleep', { matchId })
+      ctx.broadcast('live.changed', { matchId })
+    }
+  } catch (err) {
+    log.error('Could not stop the match clocks before sleep', err)
+  }
+}
+
+/** Keep running: a modal box would block the clock, and every saved action is already on disk. */
+function warnOfUnexpectedError(err: Error): void {
+  log.error('Uncaught exception', err)
+  if (warnedOfError || !app.isReady()) return
+  warnedOfError = true
+  void dialog.showMessageBox({
+    type: 'warning',
+    title: 'HMMS hit a problem',
+    message: 'Something unexpected went wrong.',
+    detail: 'Saved data is safe. You can carry on, but if anything looks wrong, close HMMS and open it again. The details are in the log folder.'
+  })
 }
 
 /** Closing the window while a match clock runs needs confirmation; the clock is then stopped. */
@@ -162,6 +222,8 @@ function confirmCloseWhileClockRuns(e: Electron.Event): void {
     message: 'A match clock is running.',
     detail: 'Closing HMMS stops the clock. The match is saved and can be continued when HMMS is opened again.'
   })
+  // The box stops the ticks while it is open. That is not sleep, and the clock kept running.
+  lastTick = { wall: Date.now(), mono: performance.now() }
   if (choice === 0) {
     e.preventDefault()
     return

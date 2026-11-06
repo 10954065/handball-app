@@ -2,6 +2,49 @@
 
 All notable changes to HMMS are recorded here.
 
+## [0.8.0] - Phase 8: Deployment - 2026-11-06
+
+### Added
+- Windows installer, `HMMS-Setup-<version>.exe`. It installs for the current user with no
+  administrator rights, or for all users, needs no other software, and adds desktop and Start Menu
+  shortcuts.
+  Installing over an existing copy updates it, and uninstalling keeps the data.
+- Application icon, drawn from the HMMS mark, with heavier seams at small sizes.
+- User, match operator and administrator guides, in `docs/` and under Help & guides in the app, so
+  they are there with no internet connection.
+- Recovery at startup. If the data file is damaged or missing, HMMS offers the newest backup that
+  passes verification or a file of your choice. The damaged files are kept, never erased. Anything
+  else that stops HMMS opening, such as a failed update, is explained and offers no restore.
+- A verified copy of the data before an update changes it, listed as Before update. If the copy
+  cannot be made, the update does not go ahead.
+- A full integrity check after any session that did not close properly.
+- Data saved by a newer version is refused with an explanation, and left unchanged.
+- A failed screen reloads by itself, or shows what to do, instead of leaving a blank window. Screen
+  errors now reach the log. Settings has an Open log folder button.
+- The screen stays on while a match is live. If the computer sleeps anyway, the clock stops and
+  the time asleep is not counted, even on a laptop that does not report going to sleep.
+- `npm run test:package` drives the real installer: install, restart, update, a live match and
+  reports from inside the package, and uninstall.
+
+### Changed
+- Demonstration mode cannot open during a live match, because the clock, sleep protection and
+  scoreboard follow the open database. Changing the open database closes the scoreboard.
+- A damaged demonstration database no longer stops the application: the data in use stays open.
+- The installed program has no application menu, so Ctrl+R and Ctrl+W do nothing during a match.
+- Removed the placeholder for modules not yet built, since every module now is.
+
+### Security
+- Installed copies disable running as Node, `NODE_OPTIONS` and the Node inspector, and check the
+  integrity of the application archive when they start.
+- The development server setting is ignored in an installed copy. It would have loaded a page with
+  full access to the preload bridge.
+- Navigation is pinned to the application's own page. Before, any `file://` address was allowed, so
+  a file dropped on the window replaced HMMS with that file.
+
+### Fixed
+- If the database could not be opened, HMMS told the operator to restore a backup and then exited,
+  and there was no way to do that without the program.
+
 ## [0.7.0] - Phase 7: Competition management - 2026-11-05
 
 ### Added

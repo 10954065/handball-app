@@ -3,12 +3,14 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, statSync, unlinkSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import { and, desc, eq } from 'drizzle-orm'
-import type { BackupDTO } from '@shared/dto'
+import type { BackupDTO, DataMode } from '@shared/dto'
 import { AppError } from '@shared/errors'
+import { DatabaseDamaged, DatabaseRefused, isDamage } from '../db/connection'
+import { unknownMigrations } from '../db/migrate'
 import { backupHistory } from '../db/schema'
 import { type Ctx, nowOf, uuid } from './ctx'
 
-export type BackupKind = 'auto' | 'manual' | 'pre_restore' | 'external'
+export type BackupKind = 'auto' | 'manual' | 'pre_restore' | 'pre_update' | 'external'
 
 const stamp = (ms: number) => new Date(ms).toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, 19)
 
@@ -36,6 +38,7 @@ export function verifyDatabaseFile(path: string): FileVerification {
     for (const t of ['__hmms_migrations', 'users', 'matches', 'match_events']) {
       if (!tables.has(t)) return { ok: false, reason: 'The file is not an HMMS database.', integrity }
     }
+    if (unknownMigrations(db).length) return { ok: false, reason: 'It was made by a newer version of HMMS.', integrity }
     return { ok: true, reason: null, integrity }
   } catch (err) {
     return { ok: false, reason: `Unable to open database: ${(err as Error).message}`, integrity: 'error' }
@@ -75,6 +78,38 @@ export async function createBackup(ctx: Ctx, dir: string, kind: BackupKind, note
   }
   ctx.db.insert(backupHistory).values(row).run()
   return toDTO(row)
+}
+
+/**
+ * Copy the database before an update changes it. This runs on an open connection before any
+ * migration, so it must be synchronous. If it fails, the update does not go ahead.
+ */
+export function snapshotBeforeUpdate(sqlite: Database.Database, dir: string, mode: DataMode, at = Date.now()): string {
+  const file = join(dir, `hmms-${mode}-pre_update-${stamp(at)}.db`)
+  const refuse = (why: string) =>
+    new DatabaseRefused(`HMMS needs to update its data but could not save a safety copy first (${why}). Nothing has been changed. Check there is free disk space and start HMMS again.`)
+  try {
+    sqlite.prepare('VACUUM INTO ?').run(file)
+  } catch (err) {
+    if (isDamage(err)) throw err
+    throw refuse((err as Error).message)
+  }
+  const v = verifyDatabaseFile(file)
+  if (!v.ok) throw new DatabaseDamaged(`The data did not copy cleanly. ${v.reason ?? ''}`)
+  return file
+}
+
+/** Add the copy made before an update to the backup history. */
+export function recordSnapshot(ctx: Ctx, file: string): void {
+  recordBackup(ctx, {
+    kind: 'pre_update',
+    filePath: file,
+    sizeBytes: statSync(file).size,
+    sha256: sha256File(file),
+    integrity: 'ok',
+    note: 'Before updating HMMS',
+    createdAt: nowOf(ctx)
+  })
 }
 
 /** Record a backup file that was created by another database (e.g. before a restore). */

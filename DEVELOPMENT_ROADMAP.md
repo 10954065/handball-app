@@ -12,7 +12,7 @@ acceptance criteria pass (see TESTING_STRATEGY.md).
 | 5 Rules and discipline | Warnings, suspensions with simultaneous timers and expiry sound, third-suspension disqualification, red and blue cards, officials, time-outs | Engine passes automated tests against documented rules | **Complete** |
 | 6 Statistics and reports | Player, goalkeeper, team statistics, match sheet, PDF, Excel, printing, archive, history | Statistics and reports agree with the event ledger | **Complete** |
 | 7 Competition management | Fixtures, standings, results, groups, knockout rounds, competition reports | Competition records calculated correctly from finalized matches | **Complete** |
-| 8 Deployment | Windows installer, icon, versioning, data directory, crash recovery, error logging, production build, user/admin/operator guides | Installs and runs on a clean Windows PC without Node.js, terminal or internet | Planned |
+| 8 Deployment | Windows installer, icon, versioning, data directory, crash recovery, error logging, production build, user/admin/operator guides | Installs and runs on a clean Windows PC without Node.js, terminal or internet | Built and tested on the development PC. **Awaiting the clean-PC check** in TESTING_STRATEGY.md |
 
 Note: the pure rules engine (clock, periods, discipline, time-outs, lineup, ledger derivation)
 was implemented and tested in phase 1 because the database schema depends on it. Phases 4-5

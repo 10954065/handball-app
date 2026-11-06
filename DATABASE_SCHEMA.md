@@ -51,7 +51,7 @@ reviewed, bundled into the app and applied in order inside transactions; recorde
 | `match_reports` | Archive of generated PDF/XLSX files, stored as blobs so backups include them. `ledger_digest` is the SHA-256 of the ledger the file was made from: when it differs from the current ledger the file is outdated. `content_key` is the SHA-256 of the whole report, so an identical report is not stored twice. `match_state` records whether the match was final. |
 | `app_settings` | JSON application settings. |
 | `audit_logs` | Append-only audit trail (who, what, before, after). |
-| `backup_history` | Every backup: path, size, SHA-256, integrity result. |
+| `backup_history` | Every backup: kind (`auto`, `manual`, `pre_restore`, `pre_update`, `external`), path, size, SHA-256, integrity result. |
 
 ## Conventions
 

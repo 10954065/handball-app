@@ -84,6 +84,11 @@ export const contract = {
   // application
   'app.info': channel<AppInfo>()('public', noInput),
   'app.openDataFolder': channel<void>()('admin', noInput),
+  'app.openLogFolder': channel<void>()('authenticated', noInput),
+  'app.reportError': channel<void>()(
+    'public',
+    z.object({ message: z.string().max(2000), stack: z.string().max(8000).nullable(), route: z.string().max(300) })
+  ),
 
   // authentication & users
   'auth.status': channel<AuthStatus>()('public', noInput),

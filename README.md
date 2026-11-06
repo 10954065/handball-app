@@ -5,7 +5,7 @@ team and player registration, starting lineups, a live match centre with scorebo
 goals, discipline, suspensions, time-outs and substitutions, statistics, reports and
 competitions. Built for match secretaries and scorekeepers at the official table.
 
-> Status: **Phases 1-7 (desktop foundation, administration, starting lineups, live match engine, rules and discipline, statistics and reports, competition management) complete.** Next: deployment. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
+> Status: **All eight phases are built.** The Windows installer is tested on the development PC, and the final check on a clean PC is still to be done. See [DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md).
 
 ## Key properties
 
@@ -13,6 +13,12 @@ competitions. Built for match secretaries and scorekeepers at the official table
 - **Local data.** One SQLite database in `%APPDATA%\HMMS\data\`, never in the install folder.
 - **Safe.** Transactional event recording, verified backups, reversible restore, audit log.
 - **Secure Electron.** Sandboxed renderer, typed and validated IPC, role-based permissions.
+
+## Installing
+
+Run `HMMS-Setup-<version>.exe` and follow the steps. It needs Windows 10 or 11 (64-bit), and no
+internet connection, administrator rights or other software. The [administrator guide](docs/ADMIN_GUIDE.md)
+covers installing, updating, moving to a new computer and recovering from damage.
 
 ## Development
 
@@ -24,6 +30,8 @@ npm run dev          # start the app with hot reload
 npm run typecheck
 npm test             # unit, database and UI tests
 npm run test:e2e     # builds and drives the real Electron app with Playwright
+npm run dist         # builds the Windows installer into release/
+npm run test:package # builds two installers, then installs, updates and uninstalls for real
 ```
 
 If npm reports install scripts that are not allowed, run `npm approve-scripts` for
@@ -63,6 +71,8 @@ starting Electron manually (`npm run dev` and the E2E tests handle this).
 
 ## Documentation
 
+- [User guide](docs/USER_GUIDE.md), [match operator guide](docs/OPERATOR_GUIDE.md) and
+  [administrator guide](docs/ADMIN_GUIDE.md). All three are also in the app under Help & guides.
 - [PROJECT_ARCHITECTURE.md](PROJECT_ARCHITECTURE.md)
 - [PRODUCT_REQUIREMENTS.md](PRODUCT_REQUIREMENTS.md)
 - [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md)

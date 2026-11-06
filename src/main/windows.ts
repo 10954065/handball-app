@@ -1,15 +1,46 @@
-import { BrowserWindow, screen, shell } from 'electron'
+import { app, BrowserWindow, dialog, screen, shell } from 'electron'
 import { join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+import { log } from './logger'
 
-const isDev = !!process.env['ELECTRON_RENDERER_URL']
+/** The development server is never honoured in an installed copy: it would run with the preload. */
+export const isDev = !app.isPackaged && !!process.env['ELECTRON_RENDERER_URL']
+
+const RENDERER_FILE = join(__dirname, '../renderer/index.html')
+/** A screen that keeps crashing is left alone rather than reloaded forever. */
+const CRASH_WINDOW_MS = 60_000
+const MAX_CRASHES = 3
 
 export function rendererOrigins(): string[] {
   return isDev ? [new URL(process.env['ELECTRON_RENDERER_URL']!).origin] : ['file://']
 }
 
+/** Reload a screen whose renderer process died. Sign-in and all match data live in the main process. */
+function reloadOnCrash(win: BrowserWindow, name: string): void {
+  let crashes: number[] = []
+  win.webContents.on('render-process-gone', (_e, details) => {
+    log.error(`The ${name} screen stopped`, details)
+    if (details.reason === 'clean-exit' || win.isDestroyed()) return
+    const now = Date.now()
+    crashes = [...crashes.filter((t) => now - t < CRASH_WINDOW_MS), now]
+    if (crashes.length <= MAX_CRASHES) {
+      win.webContents.reload()
+      return
+    }
+    void dialog.showMessageBox({
+      type: 'error',
+      title: 'HMMS keeps stopping',
+      message: `The ${name} screen has stopped several times.`,
+      detail: 'Saved data is safe. Close HMMS and open it again. If this keeps happening, send the log folder to your administrator.'
+    })
+  })
+  win.on('unresponsive', () => log.warn(`The ${name} screen is not responding`))
+  win.on('responsive', () => log.info(`The ${name} screen is responding again`))
+}
+
 function loadRoute(win: BrowserWindow, hash: string): void {
   if (isDev) void win.loadURL(`${process.env['ELECTRON_RENDERER_URL']}#${hash}`)
-  else void win.loadFile(join(__dirname, '../renderer/index.html'), { hash })
+  else void win.loadFile(RENDERER_FILE, { hash })
 }
 
 const secureWebPreferences = (): Electron.WebPreferences => ({
@@ -39,6 +70,7 @@ export function createMainWindow(): BrowserWindow {
     if (width <= 1440) win.maximize()
     win.show()
   })
+  reloadOnCrash(win, 'main')
   loadRoute(win, '/')
   return win
 }
@@ -65,6 +97,7 @@ export function createScoreboardWindow(matchId: string, fullscreen: boolean): Br
     if (external && fullscreen) win.setFullScreen(true)
     win.show()
   })
+  reloadOnCrash(win, 'scoreboard')
   loadScoreboard(win, matchId)
   return win
 }
@@ -87,7 +120,10 @@ export function hardenContents(contents: Electron.WebContents): void {
     return { action: 'deny' }
   })
   contents.on('will-navigate', (e, url) => {
-    if (!rendererOrigins().some((o) => url.startsWith(o))) e.preventDefault()
+    // Comparing paths, not origins: every file on the computer is a file:// address, and dropping
+    // one on the window would otherwise replace HMMS with that file.
+    const allowed = isDev ? rendererOrigins().some((o) => url.startsWith(o)) : url.split('#')[0] === pathToFileURL(RENDERER_FILE).href
+    if (!allowed) e.preventDefault()
   })
   contents.session.setPermissionRequestHandler((_wc, _perm, cb) => cb(false))
 }

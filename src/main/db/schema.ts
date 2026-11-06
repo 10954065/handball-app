@@ -506,7 +506,7 @@ export const auditLogs = sqliteTable('audit_logs', {
 
 export const backupHistory = sqliteTable('backup_history', {
   id: id(),
-  kind: text('kind', { enum: ['auto', 'manual', 'pre_restore', 'external'] }).notNull(),
+  kind: text('kind', { enum: ['auto', 'manual', 'pre_restore', 'pre_update', 'external'] }).notNull(),
   filePath: text('file_path').notNull(),
   sizeBytes: integer('size_bytes').notNull(),
   sha256: text('sha256').notNull(),

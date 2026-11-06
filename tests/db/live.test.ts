@@ -15,10 +15,12 @@ import {
   recoverClock,
   setClock,
   startPeriod,
+  stopAllClocks,
   tickClocks,
   voidEvent
 } from '../../src/main/services/live'
 import { insertEvent } from '../../src/main/services/live/state'
+import { assertNoLiveMatch } from '../../src/main/services/matches'
 import { testDb, type TestDb } from './helpers'
 import { fakeTime, readyMatch } from './live-fixture'
 
@@ -312,5 +314,29 @@ describe('knockout flow', () => {
     const row = t.handle.db.select().from(matches).where(eq(matches.id, m.matchId)).get()!
     expect(row).toMatchObject({ homeScore: 0, awayScore: 0, homeShootout: 2, awayShootout: 0, winnerSide: 'home', decidedBy: 'shootout' })
     expect(t.handle.db.select().from(matchEvents).all().filter((e) => e.type === 'period_start')).toHaveLength(3)
+  })
+})
+
+describe('sleep during a match', () => {
+  it('counts only the time up to the last good tick when the computer sleeps unannounced', () => {
+    const { matchId } = readyMatch(time.ctx())
+    startPeriod(time.ctx(), matchId)
+    clockAction(time.ctx(), { matchId, action: 'start' })
+    time.advance(60_000)
+    const lastTick = time.ctx().mono!()
+    time.advance(600_000)
+
+    stopAllClocks({ ...time.ctx(), mono: () => lastTick }, 'The computer went to sleep')
+
+    expect(getLive(time.ctx(), matchId).clock).toMatchObject({ running: false, elapsedMs: 60_000 })
+  })
+})
+
+describe('demonstration mode', () => {
+  it('cannot open while a match is in progress', () => {
+    const { matchId } = readyMatch(time.ctx())
+    expect(() => assertNoLiveMatch(time.ctx())).not.toThrow()
+    startPeriod(time.ctx(), matchId)
+    expect(() => assertNoLiveMatch(time.ctx())).toThrow(/match is in progress/)
   })
 })

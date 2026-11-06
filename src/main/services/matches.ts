@@ -193,3 +193,13 @@ export function deleteMatch(ctx: Ctx, id: string): void {
     audit(ctx, { action: 'matches.delete', entity: 'matches', entityId: id, before: m })
   })
 }
+
+/** Clocks, sleep protection and the scoreboard all follow the open database, so it must stay open. */
+export function assertNoLiveMatch(ctx: Ctx): void {
+  if (liveMatchIds(ctx).length) throw new AppError('CONFLICT', 'A match is in progress. Finish it before opening demonstration mode.')
+}
+
+/** Matches in progress, whether or not their clock is running. */
+export function liveMatchIds(ctx: Ctx): string[] {
+  return ctx.db.select({ id: matches.id }).from(matches).where(eq(matches.status, 'live')).all().map((m) => m.id)
+}

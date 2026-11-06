@@ -68,7 +68,7 @@ export interface UserDTO {
 
 export interface BackupDTO {
   id: string
-  kind: 'auto' | 'manual' | 'pre_restore' | 'external'
+  kind: 'auto' | 'manual' | 'pre_restore' | 'pre_update' | 'external'
   filePath: string
   fileName: string
   sizeBytes: number

@@ -3,7 +3,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { ChevronsLeft, ChevronsRight, FlaskConical, LogOut } from 'lucide-react'
 import { call } from '@/lib/api'
 import { cn } from '@/lib/cn'
-import { BUILD_PHASE, NAV } from '@/lib/nav'
+import { NAV } from '@/lib/nav'
 import { useApi } from '@/lib/query'
 import { useSession } from '@/lib/session'
 import { initials } from '@/lib/format'
@@ -41,36 +41,32 @@ export function Shell() {
             <BrandWordmark collapsed={collapsed} />
           </div>
           <nav className="flex-1 space-y-0.5 overflow-y-auto p-2.5" aria-label="Primary">
-            {NAV.map((item) => {
-              const available = item.phase <= BUILD_PHASE
-              return (
-                <NavLink
-                  key={item.to}
-                  to={item.to}
-                  end={item.to === '/'}
-                  title={collapsed ? item.label : undefined}
-                  className={({ isActive }) =>
-                    cn(
-                      'group relative flex h-10 items-center gap-3 rounded-md text-[13.5px] font-medium transition-colors',
-                      collapsed ? 'justify-center' : 'px-3',
-                      isActive ? 'bg-primary/14 text-text' : 'text-muted hover:bg-surface-2 hover:text-text',
-                      !available && 'opacity-55'
-                    )
-                  }
-                >
-                  {({ isActive }) => (
-                    <>
-                      {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-primary" />}
-                      <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-primary')} />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
-                      {!collapsed && item.to === '/live' && !!liveMatches.data?.length && (
-                        <span data-testid="live-indicator" title="A match is live" className="ml-auto size-2 rounded-full bg-red-card shadow-[0_0_8px] shadow-red-card" />
-                      )}
-                    </>
-                  )}
-                </NavLink>
-              )
-            })}
+            {NAV.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.to === '/'}
+                title={collapsed ? item.label : undefined}
+                className={({ isActive }) =>
+                  cn(
+                    'group relative flex h-10 items-center gap-3 rounded-md text-[13.5px] font-medium transition-colors',
+                    collapsed ? 'justify-center' : 'px-3',
+                    isActive ? 'bg-primary/14 text-text' : 'text-muted hover:bg-surface-2 hover:text-text'
+                  )
+                }
+              >
+                {({ isActive }) => (
+                  <>
+                    {isActive && <span className="absolute left-0 top-2 bottom-2 w-[3px] rounded-r bg-primary" />}
+                    <item.icon className={cn('size-[18px] shrink-0', isActive && 'text-primary')} />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    {!collapsed && item.to === '/live' && !!liveMatches.data?.length && (
+                      <span data-testid="live-indicator" title="A match is live" className="ml-auto size-2 rounded-full bg-red-card shadow-[0_0_8px] shadow-red-card" />
+                    )}
+                  </>
+                )}
+              </NavLink>
+            ))}
           </nav>
           <div className="border-t border-border p-2.5">
             {user && !collapsed && (

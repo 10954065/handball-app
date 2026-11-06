@@ -4,6 +4,7 @@ import type { PushEventName, PushEvents } from '@shared/ipc/contract'
 import { closeDatabase, openDatabase, type DbHandle } from './db/connection'
 import type { AppPaths } from './paths'
 import { log } from './logger'
+import { recordSnapshot, snapshotBeforeUpdate } from './services/backup'
 
 /** Process-wide application state owned by the trusted main process. */
 export class AppContext {
@@ -16,8 +17,24 @@ export class AppContext {
   constructor(paths: AppPaths, mode: DataMode = 'production') {
     this.paths = paths
     this.mode = mode
-    this.handle = openDatabase(paths.dbFile(mode))
-    if (this.handle.appliedMigrations.length) log.info('Applied migrations', this.handle.appliedMigrations)
+    this.handle = this.open(mode)
+  }
+
+  private open(mode: DataMode): DbHandle {
+    const snapshots: string[] = []
+    const handle = openDatabase(this.paths.dbFile(mode), {
+      beforeMigrate: (sqlite) => snapshots.push(snapshotBeforeUpdate(sqlite, this.paths.backupDirFor(mode), mode))
+    })
+    if (handle.appliedMigrations.length) log.info('Applied migrations', handle.appliedMigrations)
+    for (const file of snapshots) {
+      log.info('Saved a copy of the data before updating it', { file })
+      try {
+        recordSnapshot({ db: handle.db, sqlite: handle.sqlite, user: null, mode }, file)
+      } catch (err) {
+        log.error('Could not add the copy to the backup history', err)
+      }
+    }
+    return handle
   }
 
   get db() {
@@ -30,10 +47,12 @@ export class AppContext {
 
   /** Close and reopen the database (after restore, or when switching demo mode). */
   reopen(mode: DataMode = this.mode): void {
+    // Opened first: if this fails, the data in use stays open and nothing else has changed.
+    const next = this.open(mode)
     closeDatabase(this.handle)
+    this.handle = next
     this.mode = mode
     this.session = null
-    this.handle = openDatabase(this.paths.dbFile(mode))
     for (const l of this.listeners) l(mode)
     this.broadcast('data.reloaded', { mode })
     this.broadcast('session.changed', { user: null })

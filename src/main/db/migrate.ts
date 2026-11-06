@@ -19,12 +19,18 @@ export const bundledMigrations: Migration[] = Object.entries(files)
   .map(([path, sql]) => ({ id: path.split('/').pop()!.replace(/\.sql$/, ''), sql }))
   .sort((a, b) => a.id.localeCompare(b.id))
 
+const appliedIds = (sqlite: Database.Database): string[] => (sqlite.prepare('SELECT id FROM __hmms_migrations').all() as { id: string }[]).map((r) => r.id)
+
 export function pendingMigrations(sqlite: Database.Database, migrations = bundledMigrations): Migration[] {
   ensureTable(sqlite)
-  const applied = new Set(
-    (sqlite.prepare('SELECT id FROM __hmms_migrations').all() as { id: string }[]).map((r) => r.id)
-  )
+  const applied = new Set(appliedIds(sqlite))
   return migrations.filter((m) => !applied.has(m.id))
+}
+
+/** Migrations recorded in a database that this version does not have: a newer version wrote it. */
+export function unknownMigrations(sqlite: Database.Database, migrations = bundledMigrations): string[] {
+  const known = new Set(migrations.map((m) => m.id))
+  return appliedIds(sqlite).filter((id) => !known.has(id))
 }
 
 export function runMigrations(sqlite: Database.Database, migrations = bundledMigrations): string[] {
@@ -42,7 +48,7 @@ export function runMigrations(sqlite: Database.Database, migrations = bundledMig
     try {
       apply()
     } catch (err) {
-      throw new Error(`Database migration ${m.id} failed: ${(err as Error).message}`)
+      throw new Error(`Database migration ${m.id} failed: ${(err as Error).message}`, { cause: err })
     }
   }
   return pending.map((m) => m.id)

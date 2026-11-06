@@ -11,8 +11,13 @@ import { getSettings, updateSettings } from '../../services/settings'
 import { restoreDatabase } from '../../restore'
 import type { AppContext } from '../../context'
 import { seedDemoData } from '../../services/demo'
+import { assertNoLiveMatch } from '../../services/matches'
+import { log } from '../../logger'
 
 const DEMO_USER = 'demo'
+/** A screen stuck in an error loop must not fill the disk, and must not use up the log for good. */
+const MAX_SCREEN_ERRORS_PER_MINUTE = 10
+const screenErrors = { minute: 0, count: 0 }
 
 /** In demonstration mode the operator is signed in automatically as the demo administrator. */
 async function ensureDemoSession(app: AppContext): Promise<void> {
@@ -48,6 +53,14 @@ export const systemHandlers = {
   }),
   'app.openDataFolder': async (_i, { app }) => {
     await shell.openPath(app.paths.root)
+  },
+  'app.openLogFolder': async (_i, { app }) => {
+    await shell.openPath(app.paths.logDir)
+  },
+  'app.reportError': (input) => {
+    const minute = Math.floor(Date.now() / 60_000)
+    if (minute !== screenErrors.minute) Object.assign(screenErrors, { minute, count: 0 })
+    if (++screenErrors.count <= MAX_SCREEN_ERRORS_PER_MINUTE) log.error('Screen error', input)
   },
 
   'auth.status': (_i, ctx) => ({ needsSetup: auth.needsSetup(ctx), user: ctx.app.session, mode: ctx.app.mode }),
@@ -118,8 +131,12 @@ export const systemHandlers = {
   'db.integrity': (_i, ctx) => ({ ...checkIntegrity(ctx.sqlite), checkedAt: Date.now() }),
   'audit.list': (input, ctx) => listAudit(ctx, input),
 
-  'demo.enter': async (_i, { app }) => {
-    if (app.mode !== 'demo') app.reopen('demo')
+  'demo.enter': async (_i, ctx) => {
+    const { app } = ctx
+    if (app.mode !== 'demo') {
+      assertNoLiveMatch(ctx)
+      app.reopen('demo')
+    }
     await ensureDemoSession(app)
   },
   'demo.exit': (_i, { app }) => {

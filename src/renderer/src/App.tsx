@@ -1,13 +1,12 @@
 import { useEffect } from 'react'
 import { createHashRouter, Navigate, RouterProvider } from 'react-router-dom'
+import { ScreenError } from '@/components/layout/screen-error'
 import { Shell } from '@/components/layout/shell'
 import { Spinner } from '@/components/ui/misc'
 import { useApi } from '@/lib/query'
-import { BUILD_PHASE, NAV } from '@/lib/nav'
 import { useSession } from '@/lib/session'
 import { LoginPage, SetupPage } from '@/pages/auth'
 import { DashboardPage } from '@/pages/dashboard'
-import { NotAvailablePage } from '@/pages/not-available'
 import { SettingsPage } from '@/pages/settings'
 import { CompetitionsPage } from '@/pages/competitions'
 import { CompetitionDetailPage } from '@/pages/competitions/detail'
@@ -18,6 +17,7 @@ import { LineupsPage } from '@/pages/lineups'
 import { LiveIndexPage } from '@/pages/live'
 import { MatchCentrePage } from '@/pages/live/centre'
 import { ScoreboardPage } from '@/pages/scoreboard'
+import { HelpPage } from '@/pages/help'
 import { HistoryPage } from '@/pages/history'
 import { ReportsPage } from '@/pages/reports'
 import { ReportDetailPage } from '@/pages/reports/detail'
@@ -29,13 +29,13 @@ import { PlayerDetailPage } from '@/pages/players/detail'
 import { TeamsPage } from '@/pages/teams'
 import { TeamDetailPage } from '@/pages/teams/detail'
 
-/** Routes per navigation section. Sections without an entry are not part of this build yet. */
-const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> = {
+const SECTIONS: Record<string, { path: string; element: React.ReactNode }[]> = {
   '/live': [
     { path: 'live', element: <LiveIndexPage /> },
     { path: 'live/:id', element: <MatchCentrePage /> }
   ],
   '/settings': [{ path: 'settings', element: <SettingsPage /> }],
+  '/help': [{ path: 'help', element: <HelpPage /> }],
   '/teams': [
     { path: 'teams', element: <TeamsPage /> },
     { path: 'teams/:id', element: <TeamDetailPage /> }
@@ -64,17 +64,16 @@ const IMPLEMENTED: Record<string, { path: string; element: React.ReactNode }[]> 
 }
 
 const router = createHashRouter([
-  { path: '/scoreboard/:id', element: <ScoreboardPage /> },
+  { path: '/scoreboard/:id', element: <ScoreboardPage />, errorElement: <ScreenError publicScreen /> },
   { path: '/print/report/:id', element: <ReportPrintPage /> },
   { path: '/print/season/:id', element: <SeasonPrintPage /> },
   {
     path: '/',
     element: <AuthGate />,
+    errorElement: <ScreenError />,
     children: [
       { index: true, element: <DashboardPage /> },
-      ...NAV.filter((n) => n.to !== '/').flatMap((n) =>
-        n.phase <= BUILD_PHASE && IMPLEMENTED[n.to] ? IMPLEMENTED[n.to] : [{ path: n.to.slice(1) + '/*', element: <NotAvailablePage item={n} /> }]
-      ),
+      ...Object.values(SECTIONS).flat(),
       { path: '*', element: <Navigate to="/" replace /> }
     ]
   }

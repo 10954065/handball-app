@@ -1,4 +1,4 @@
-import { FolderOpen, ScrollText } from 'lucide-react'
+import { FileWarning, FolderOpen, ScrollText } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { EmptyState, Panel, PanelHeader, Spinner } from '@/components/ui/misc'
 import { call } from '@/lib/api'
@@ -28,11 +28,16 @@ export function SystemSettings() {
           title="System information"
           subtitle="HMMS works fully offline. All data is stored locally in the folders below."
           actions={
-            can('admin') && (
-              <Button size="sm" variant="secondary" onClick={() => void call('app.openDataFolder')}>
-                <FolderOpen /> Open data folder
+            <>
+              <Button size="sm" variant="secondary" onClick={() => void call('app.openLogFolder')}>
+                <FileWarning /> Open log folder
               </Button>
-            )
+              {can('admin') && (
+                <Button size="sm" variant="secondary" onClick={() => void call('app.openDataFolder')}>
+                  <FolderOpen /> Open data folder
+                </Button>
+              )}
+            </>
           }
         />
         <dl className="divide-y divide-border">

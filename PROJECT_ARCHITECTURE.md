@@ -118,3 +118,47 @@ fixture that already exists, the tie reports a problem for the competition admin
 
 `reportWindow.ts` renders any print route, so the competition report uses the same hidden window
 as the match report. Competition reports are made on request and are not archived.
+
+## Deployment and recovery (phase 8)
+
+`electron-builder.yml` builds an NSIS installer that offers an install for the current user, which
+needs no administrator rights, or for all users. Data stays per Windows account either way.
+Only `out/` and the production dependencies are packaged. The renderer is fully bundled, and the
+one native module, better-sqlite3, is a prebuilt Node-API binary that links only to `KERNEL32.dll`,
+so a target PC needs no Visual C++ runtime. Electron fuses disable running as Node, `NODE_OPTIONS`
+and the Node inspector, and check the archive's integrity at start. Installers are not code-signed,
+so SmartScreen warns on first run until a certificate is bought.
+
+Startup runs through `openDataOrRecover` in `startup.ts`:
+
+- A marker file, `hmms.running`, is written at start and removed on a clean close. If it is already
+  there, the previous session did not close, so the whole file is integrity-checked before use.
+- `openDatabase` refuses data with migrations it does not know, which means a newer version wrote
+  it. `DatabaseRefused` means the data is healthy, so a backup is never offered for it.
+- Before migrating an existing database, `snapshotBeforeUpdate` copies it with `VACUUM INTO`. If
+  the copy fails the update does not go ahead.
+- A backup is offered only when the file itself is damaged or missing (`isDamage`). A locked file,
+  a full disk or a failed migration leave healthy data, so HMMS explains and quits. Replacing data
+  is never the default button.
+- `installBackup` copies the backup first, then moves the journals and the damaged file to a
+  `damaged-<date>` folder beside the database, and puts them back if a step fails.
+
+During a session, `render-process-gone` reloads the screen, because sign-in and match state are in
+the main process. Three reloads in a minute is the limit, then the operator is told. Route errors
+show `ScreenError`, and screen errors reach the log through `app.reportError`. An exception in the
+main process is logged and leaves the program running: a modal box would block the clock.
+
+`powerSaveBlocker` keeps the display on while any match is live. Sleep can still happen, such as a
+closed lid, and `performance.now()` can keep counting across it, so `powerMonitor` stops the
+clocks on `suspend`. Not every laptop reports sleep to applications, so a gap of 30 seconds between
+ticks does the same, stopping the clocks at the last tick. Demonstration mode cannot open during a
+live match, because all of this follows the open database.
+
+The application menu is removed outside development, so Ctrl+R and Ctrl+W do nothing during a
+match. `will-navigate` compares the exact renderer file, because every file on the computer has a
+`file://` address and dropping one on the window would otherwise replace HMMS with it. The
+`ELECTRON_RENDERER_URL` development setting is ignored in an installed copy, since it would load a
+page with the preload bridge.
+
+The guides in `docs/` are compiled into the renderer and shown under Help & guides, so they work
+offline and always match the installed version.

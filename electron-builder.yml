@@ -1,0 +1,54 @@
+appId: gh.hmms.desktop
+productName: HMMS
+copyright: Copyright 2026 HMMS Project
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**
+  - package.json
+  - '!**/*.map'
+  - '!**/*.ts'
+  - '!**/node_modules/better-sqlite3/{deps,src,binding.gyp}'
+  - '!**/node_modules/better-sqlite3/prebuilds/{darwin,linux,linuxmusl,win32-arm64}*'
+
+# The only native module ships a prebuilt Node-API binary, which needs no rebuilding for Electron.
+npmRebuild: false
+electronLanguages:
+  - en-US
+  - en-GB
+
+# Close the routes that turn an installed Electron app into a general-purpose script runner.
+# grantFileProtocolExtraPrivileges stays on because the application itself loads from file://.
+electronFuses:
+  runAsNode: false
+  enableCookieEncryption: true
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true
+
+win:
+  target:
+    - target: nsis
+      arch: x64
+  executableName: HMMS
+  artifactName: HMMS-Setup-${version}.${ext}
+  requestedExecutionLevel: asInvoker
+
+# The installer offers just this user (no administrator rights) or all users. Either way, data in
+# %APPDATA%\HMMS is never touched.
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: always
+  createStartMenuShortcut: true
+  shortcutName: HMMS
+  uninstallDisplayName: HMMS
+  deleteAppDataOnUninstall: false
+  differentialPackage: false
+
+publish: null

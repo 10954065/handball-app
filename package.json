@@ -1,7 +1,7 @@
 {
   "name": "hmms",
   "productName": "HMMS",
-  "version": "0.1.0",
+  "version": "0.8.0",
   "description": "HMMS — Handball Match Management System. Offline match operations and competition management for handball officials.",
   "main": "./out/main/index.js",
   "author": "HMMS Project",
@@ -20,7 +20,8 @@
     "dist": "npm run build && electron-builder --win --x64",
     "test:ui": "vitest run --project ui",
     "test:coverage": "vitest run --coverage",
-    "test:e2e": "npm run build && playwright test"
+    "test:e2e": "npm run build && playwright test",
+    "test:package": "npm run dist && electron-builder --win --x64 -c.extraMetadata.version=0.7.9 -c.directories.output=release/upgrade-from && playwright test -c playwright.package.config.ts"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.3",
@@ -57,8 +58,10 @@
     "radix-ui": "^1.8.1",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.5",
     "recharts": "^3.10.1",
+    "remark-gfm": "^4.0.1",
     "sonner": "^2.0.8",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.4",

@@ -8,7 +8,7 @@ import { fmtBytes, fmtDateTime } from '@/lib/format'
 import { useApi, useApiMutation } from '@/lib/query'
 import { useSession } from '@/lib/session'
 
-const KIND_LABEL = { auto: 'Automatic', manual: 'Manual', pre_restore: 'Pre-restore', external: 'Exported' } as const
+const KIND_LABEL = { auto: 'Automatic', manual: 'Manual', pre_restore: 'Pre-restore', pre_update: 'Before update', external: 'Exported' } as const
 
 export function BackupSettings() {
   const { can } = useSession()
@@ -64,7 +64,7 @@ export function BackupSettings() {
                   <tr key={b.id} className="border-b border-border/60 last:border-0 hover:bg-surface-2/60">
                     <td className="px-5 py-2.5 tabular">{fmtDateTime(b.createdAt)}</td>
                     <td className="px-5 py-2.5">
-                      <Badge tone={b.kind === 'pre_restore' ? 'orange' : b.kind === 'manual' ? 'primary' : 'neutral'}>{KIND_LABEL[b.kind]}</Badge>
+                      <Badge tone={b.kind === 'pre_restore' || b.kind === 'pre_update' ? 'orange' : b.kind === 'manual' ? 'primary' : 'neutral'}>{KIND_LABEL[b.kind]}</Badge>
                     </td>
                     <td className="max-w-[360px] truncate px-5 py-2.5 font-mono text-xs text-muted" title={b.filePath}>
                       {b.fileName}
